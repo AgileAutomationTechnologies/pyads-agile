@@ -85,6 +85,62 @@ and can be individually run for each environment with the python built in librar
 When creating a pull request (PR) on GitHub, CI will automatically run
 the unit tests with the code in the PR and report back.
 
+### ADS target selection
+
+The test suite supports two ADS backends:
+
+- fake backend (default): uses the built-in `pyads.testserver`
+- real backend: talks to a running Beckhoff ADS runtime
+
+Run fake backend tests:
+
+```
+pytest --ads-target=fake
+```
+
+Run real backend tests:
+
+```
+pytest --ads-target=real --real-plc-ip 127.0.0.1
+```
+
+Run the dedicated real integration suite:
+
+```
+pytest tests/integration_real --ads-target=real --real-plc-ip 127.0.0.1 --real-plc-ams-port 851
+```
+
+Use a config file (recommended for local labs):
+
+```
+pytest tests/integration_real --real-config-file tests/integration_real/real_runtime.toml
+```
+
+Setting priority is:
+
+1. CLI flags
+2. Environment variables
+3. TOML config file
+4. Built-in defaults
+
+Optional real-backend parameters:
+
+- `--real-plc-ams-net-id`
+- `--real-plc-ams-port`
+- `--real-test-symbol` (needed for notification cleanup integration test)
+- `--real-test-symbol-int` (INT symbol for real read/write/notification integration tests)
+- `--real-test-symbol-str` (STRING symbol for real read/write integration tests)
+- `--real-test-symbol-struct` (structure symbol for real structure read/write integration tests)
+- `--real-test-symbol-struct-array` (structure-array symbol for real structure-array read/write integration tests)
+- `--real-test-struct-strlen` (STRING length for structure definition, default 80)
+- `--real-test-struct-array-size` (array size for structure-array tests, default 2)
+- `PYADS_REAL_TEST_SYMBOL_INT` (required for real read/write/notification tests, e.g. `GVL.TestInt`)
+- `PYADS_REAL_TEST_SYMBOL_STR` (optional STRING test symbol, e.g. `GVL.TestString`)
+- `PYADS_REAL_TEST_SYMBOL_STRUCT` (optional structure test symbol)
+- `PYADS_REAL_TEST_SYMBOL_STRUCT_ARRAY` (optional structure-array test symbol)
+- `PYADS_REAL_TEST_STRUCT_STRLEN` (optional structure STRING length)
+- `PYADS_REAL_TEST_STRUCT_ARRAY_SIZE` (optional structure-array size)
+
 ### Testing issues on Windows
 
 There are known issues when running tests using a Windows development environment with

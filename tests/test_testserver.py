@@ -9,15 +9,38 @@ regular pyads tests to increase the coverage of the test server itself.
 
 import time
 import unittest
+import os
 import pyads
 from pyads.testserver import AdsTestServer, BasicHandler
+from pyads.pyads_ex import adsGetNetIdForPLC
+import pytest
 
 # These are pretty arbitrary
 TEST_SERVER_AMS_NET_ID = "127.0.0.1.1.1"
 TEST_SERVER_IP_ADDRESS = "127.0.0.1"
-TEST_SERVER_AMS_PORT = pyads.PORT_SPS1
+TEST_SERVER_AMS_PORT = pyads.PORT_TC3PLC1
 
 
+def _is_real_target() -> bool:
+    return os.getenv("PYADS_TEST_TARGET", "fake").lower() == "real"
+
+
+def _resolve_real_ams_net_id(plc_ip: str) -> str:
+    configured = os.getenv("PYADS_REAL_PLC_AMS_NET_ID", "").strip()
+    if configured:
+        return configured
+    return adsGetNetIdForPLC(plc_ip)
+
+
+def _resolve_real_ams_port() -> int:
+    configured = os.getenv("PYADS_REAL_PLC_AMS_PORT", "").strip()
+    if configured:
+        return int(configured)
+    return pyads.PORT_TC3PLC1
+
+
+@pytest.mark.ads_fake
+@unittest.skipIf(_is_real_target(), "Fake ADS test-server behavior is skipped in real target mode.")
 class TestServerTestCase(unittest.TestCase):
     """Some rudimentary tests for the test server.
 
@@ -69,8 +92,6 @@ class TestServerTestCase(unittest.TestCase):
         test_int.auto_update = True
         time.sleep(0.1)  # Give server a moment
 
-        raised_error: str = ""
-
         # 4. stop the test server
         test_server.stop()
         time.sleep(0.1)  # Give server a moment
@@ -83,6 +104,59 @@ class TestServerTestCase(unittest.TestCase):
             del test_int  # Trigger destructor
         except pyads.ADSError as e:
             self.fail(f"Closing server connection raised: {e}")
+
+
+@pytest.mark.ads_real
+@unittest.skipUnless(_is_real_target(), "Real ADS tests are enabled with --ads-target=real.")
+class RealRuntimeTestCase(unittest.TestCase):
+    """Local integration checks against a running Beckhoff ADS runtime."""
+
+    def test_context_real(self):
+        plc_ip = os.getenv("PYADS_REAL_PLC_IP", "127.0.0.1")
+        ams_net_id = _resolve_real_ams_net_id(plc_ip)
+        ams_port = _resolve_real_ams_port()
+
+        plc = pyads.Connection(ams_net_id, ams_port, plc_ip)
+        with plc:
+            state = plc.read_state()
+            self.assertIsNotNone(state)
+            self.assertEqual(len(state), 2)
+
+    def test_start_stop_real(self):
+        plc_ip = os.getenv("PYADS_REAL_PLC_IP", "127.0.0.1")
+        ams_net_id = _resolve_real_ams_net_id(plc_ip)
+        ams_port = _resolve_real_ams_port()
+
+        plc = pyads.Connection(ams_net_id, ams_port, plc_ip)
+        plc.open()
+        time.sleep(0.1)
+        plc.close()
+
+    def test_disconnect_then_del_device_notification_real(self):
+        symbol_name = os.getenv("PYADS_REAL_TEST_SYMBOL", "").strip()
+        if not symbol_name:
+            self.skipTest("Set PYADS_REAL_TEST_SYMBOL to run real notification cleanup test.")
+
+        plc_ip = os.getenv("PYADS_REAL_PLC_IP", "127.0.0.1")
+        ams_net_id = _resolve_real_ams_net_id(plc_ip)
+        ams_port = _resolve_real_ams_port()
+
+        plc = pyads.Connection(ams_net_id, ams_port, plc_ip)
+        plc.open()
+
+        # Requires a valid PLC symbol configured via PYADS_REAL_TEST_SYMBOL.
+        symbol = pyads.AdsSymbol(plc, symbol_name, symbol_type=pyads.PLCTYPE_INT)
+        symbol.plc_type = pyads.PLCTYPE_INT
+        symbol.auto_update = True
+        time.sleep(0.1)
+
+        plc.close()
+        time.sleep(0.1)
+
+        try:
+            del symbol
+        except pyads.ADSError as e:
+            self.fail(f"Deleting symbol after disconnect raised: {e}")
 
 
 if __name__ == "__main__":

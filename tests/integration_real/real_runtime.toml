@@ -1,0 +1,16 @@
+[real_runtime]
+# Test target for this profile: fake | real
+ads_target = "real"
+
+# Real Beckhoff runtime endpoint
+plc_ip = "127.0.0.1"
+plc_ams_net_id = ""
+plc_ams_port = 851
+
+# Optional symbols used by integration tests
+test_symbol_int = "FrameTracking.iVialsPerFrame"
+test_symbol_str = "GVL.TestString"
+test_symbol_struct = "GVL.TestStruct"
+test_symbol_struct_array = "GVL.TestStructArray"
+test_struct_strlen = 80
+test_struct_array_size = 2

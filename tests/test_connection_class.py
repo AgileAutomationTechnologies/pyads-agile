@@ -10,6 +10,7 @@ import ctypes
 from ctypes import addressof, memmove, resize, sizeof, pointer
 import datetime
 from datetime import timezone
+import os
 import time
 import unittest
 import pyads
@@ -22,7 +23,11 @@ from collections import OrderedDict
 # These are pretty arbitrary
 TEST_SERVER_AMS_NET_ID = "127.0.0.1.1.1"
 TEST_SERVER_IP_ADDRESS = "127.0.0.1"
-TEST_SERVER_AMS_PORT = pyads.PORT_SPS1
+TEST_SERVER_AMS_PORT = pyads.PORT_TC3PLC1
+
+
+def _is_real_target() -> bool:
+    return os.getenv("PYADS_TEST_TARGET", "fake").lower() == "real"
 
 
 def create_notification_struct(payload: bytes) -> \
@@ -45,6 +50,7 @@ class _Struct(ctypes.Structure):
     _fields_ = [("x", ctypes.c_int32), ("y", ctypes.c_int32)]
 
 
+@unittest.skipIf(_is_real_target(), "Fake ADS test-server tests are skipped in real target mode.")
 class AdsConnectionClassTestCase(unittest.TestCase):
     """Testcase for ADS connection class."""
 
@@ -1294,6 +1300,7 @@ class AdsConnectionClassTestCase(unittest.TestCase):
         self.assertEqual(comment, test_struct.comment)
 
 
+@unittest.skipIf(_is_real_target(), "Fake ADS test-server tests are skipped in real target mode.")
 class AdsApiTestCaseAdvanced(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
