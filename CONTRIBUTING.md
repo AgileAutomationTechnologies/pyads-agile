@@ -1,11 +1,22 @@
-# Contributing to pyads
+# Contributing to pyads-agile
 
 Please follow these guidelines for contributing. Pull requests are welcome.
 
+## Project identity
+
+This repository publishes the `pyads-agile` distribution and is based on the
+upstream `pyads` project by Stefan Lehmann.
+
+- Upstream: https://github.com/stlehmann/pyads
+- Current distribution name: `pyads-agile`
+- Import path (for compatibility): `import pyads`
+
+Please preserve attribution and MIT license notices when contributing.
+
 ## Basic requirements
 
-- Create a new [github issue](https://github.com/stlehmann/pyads/issues) for bugs
-  or features. Search the ticket system first, to avoid filing a duplicate.
+- Create a new GitHub issue in this repository for bugs or features.
+  Search existing issues first to avoid duplicates.
 - Ensure code follows the [Syntax and conventions](#Syntax-and-conventions).
 - Code must pass tests. See [Testing](#Testing) for information on how to run and
  write unit tests.
@@ -16,7 +27,7 @@ which are not directly related to your issue please create an additional PR that
 
 ## Pull request process
 
-- Fork us on [github](https://github.com/stlehmann/pyads).
+- Fork this repository on GitHub.
 - Clone your repository.
 - Create a feature branch for your issue.
 - Keep PRs small (if possible), this makes reviews easier and your PR can be merged faster.
@@ -25,7 +36,7 @@ which are not directly related to your issue please create an additional PR that
   - Run the tests until they pass.
   - When you feel you are finished, rebase your commits to ensure a simple
     and informative commit log.
-  - Add an entry to the [Changelog](https://github.com/stlehmann/pyads/blob/master/CHANGELOG.md).
+  - Add an entry to [CHANGELOG.md](CHANGELOG.md).
 - Create a pull request on github from your forked repository.
 
 ## Syntax and conventions
@@ -60,7 +71,7 @@ The tests are located `tests` folder. Tests should be included for any new contr
 
 ### Tox
 
-All the tests for pyads can be run using [tox](https://pypi.python.org/pypi/tox).
+All tests can be run using [tox](https://pypi.org/project/tox/).
 Simply use `pip install tox` and run `tox` from the root directory. See `tox.ini`
 for available environments.
 
@@ -71,10 +82,8 @@ and can be individually run for each environment with the python built in librar
 
 ### CI
 
-When creating a pull request (PR) on [Github], Github CI will automatically run
+When creating a pull request (PR) on GitHub, CI will automatically run
 the unit tests with the code in the PR and report back.
-
-[Github]: https://github.com/stlehmann/pyads/pulls
 
 ### Testing issues on Windows
 

@@ -4,6 +4,7 @@
 #
 
 graft adslib
+include ACKNOWLEDGMENTS.md
 global-exclude *.a *.o *.obj *.bin *.so
 prune obj
 prune tests

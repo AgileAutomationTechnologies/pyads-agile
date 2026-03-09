@@ -1,8 +1,11 @@
 [project]
-name = "pyads"
-description = "Python wrapper for TwinCAT ADS library"
+name = "pyads-agile"
+description = "Agile-maintained Python wrapper for the TwinCAT ADS library, based on pyads"
 authors = [
-    { name = "Stefan Lehmann", email = "stlm@posteo.de" },
+    { name = "Agile Automation Technologies GmbH" },
+]
+maintainers = [
+    { name = "Agile Automation Technologies GmbH" },
 ]
 readme = "README.md"
 classifiers = [
@@ -48,8 +51,7 @@ dev = [
 ]
 
 [project.urls]
-Repository = "https://github.com/stlehmann/pyads"
-Documentation = "https://pyads.readthedocs.io"
+Upstream = "https://github.com/stlehmann/pyads"
 
 [build-system]
 requires = ["setuptools >= 77.0.3", "wheel"]
