@@ -107,11 +107,18 @@ class RpcObject:
             object_name: str,
             method_separator: str = "#",
             method_prefixes: Tuple[str, ...] = ("", "m_"),
+            method_return_types: Optional[Dict[str, Type["PLCDataType"]]] = None,
     ) -> None:
         self._connection = connection
         self._object_name = object_name
         self._method_separator = method_separator
         self._method_prefixes = method_prefixes
+        self._method_return_types: Dict[str, Type["PLCDataType"]] = (
+            method_return_types.copy() if method_return_types else {}
+        )
+        self._return_spec_cache: Dict[
+            str, Tuple[Optional[Type["PLCDataType"]], bool]
+        ] = {}
 
     def _candidate_method_names(self, method_name: str) -> List[str]:
         names: List[str] = []
@@ -123,6 +130,76 @@ class RpcObject:
             names.append(f"{self._object_name}{self._method_separator}{candidate}")
         # Keep order but drop duplicates
         return list(dict.fromkeys(names))
+
+    def _get_symbol_info(self, qualified_name: str) -> Optional[SAdsSymbolEntry]:
+        """Return cached symbol info for a fully qualified RPC method name."""
+        if not self._connection.is_open or self._connection._port is None:
+            return None
+
+        cache = self._connection._symbol_info_cache
+        info = cache.get(qualified_name)
+        if info is not None:
+            return info
+
+        try:
+            info = adsGetSymbolInfo(
+                self._connection._port, self._connection._adr, qualified_name
+            )
+        except ADSError:
+            return None
+
+        cache[qualified_name] = info
+        return info
+
+    def set_return_type(self, method_name: str, plc_type: Type["PLCDataType"]) -> None:
+        """Register or override the expected return type for a method."""
+        self._method_return_types[method_name] = plc_type
+        self._return_spec_cache.pop(
+            f"{self._object_name}{self._method_separator}{method_name}", None
+        )
+
+    def _manual_return_type(self, method_name: str) -> Optional[Type["PLCDataType"]]:
+        """Look up manually configured return type for a method name."""
+        candidates = {method_name}
+        for prefix in self._method_prefixes:
+            if method_name.startswith(prefix):
+                candidates.add(method_name[len(prefix):])
+            else:
+                candidates.add(f"{prefix}{method_name}")
+        for candidate in candidates:
+            plc_type = self._method_return_types.get(candidate)
+            if plc_type is not None:
+                return plc_type
+        return None
+
+    def _infer_return_spec(
+            self, qualified_name: str
+    ) -> Tuple[Optional[Type["PLCDataType"]], bool]:
+        """Infer the PLC return type for a method, falling back to raw bytes."""
+        cached = self._return_spec_cache.get(qualified_name)
+        if cached is not None:
+            return cached
+
+        plc_type: Optional[Type["PLCDataType"]] = None
+        coerce_bytes = False
+
+        _, _, method_name = qualified_name.partition(self._method_separator)
+        if method_name:
+            plc_type = self._manual_return_type(method_name)
+
+        if plc_type is None:
+            info = self._get_symbol_info(qualified_name)
+            if info is not None:
+                plc_type = ads_type_to_ctype.get(info.dataType)
+                if plc_type is None:
+                    plc_type = AdsSymbol.get_type_from_str(info.symbol_type)
+                if plc_type is None and info.size:
+                    plc_type = c_ubyte * info.size
+                    coerce_bytes = True
+
+        spec = (plc_type, coerce_bytes)
+        self._return_spec_cache[qualified_name] = spec
+        return spec
 
     @staticmethod
     def _normalize_args(
@@ -169,10 +246,16 @@ class RpcObject:
 
             last_error: Optional[ADSError] = None
             for candidate_name in self._candidate_method_names(method_name):
+                resolved_return_type = return_type
+                coerce_bytes = False
+                if resolved_return_type is None:
+                    resolved_return_type, coerce_bytes = self._infer_return_spec(
+                        candidate_name
+                    )
                 try:
-                    return self._connection.call_rpc_method(
+                    result = self._connection.call_rpc_method(
                         candidate_name,
-                        return_type=return_type,
+                        return_type=resolved_return_type,
                         write_value=write_value,
                         write_type=write_type,
                     )
@@ -180,6 +263,10 @@ class RpcObject:
                     if exc.err_code != 1808:  # symbol not found
                         raise
                     last_error = exc
+                    continue
+                if coerce_bytes and isinstance(result, list):
+                    return bytes(result)
+                return result
             if last_error is not None:
                 raise last_error
             raise AttributeError(method_name)
@@ -584,6 +671,7 @@ class Connection(object):
             object_name: str,
             method_separator: str = "#",
             method_prefixes: Tuple[str, ...] = ("", "m_"),
+            method_return_types: Optional[Dict[str, Type["PLCDataType"]]] = None,
     ) -> RpcObject:
         """Create a PLC object proxy for native RPC method calls.
 
@@ -599,6 +687,7 @@ class Connection(object):
             object_name=object_name,
             method_separator=method_separator,
             method_prefixes=method_prefixes,
+            method_return_types=method_return_types,
         )
 
     def call_rpc_method(

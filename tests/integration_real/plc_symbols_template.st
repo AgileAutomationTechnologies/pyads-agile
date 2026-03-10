@@ -19,6 +19,6 @@ END_VAR
 TYPE ST_PyadsTest :
 STRUCT
     i : INT;
-    s : STRING(80);
+    _s : STRING(80);
 END_STRUCT
 END_TYPE

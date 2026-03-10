@@ -4,7 +4,7 @@ ads_target = "real"
 
 # Real Beckhoff runtime endpoint
 plc_ip = "127.0.0.1"
-plc_ams_net_id = ""
+plc_ams_net_id = "127.0.0.1.1.1"
 plc_ams_port = 851
 timeout_ms = 3000
 

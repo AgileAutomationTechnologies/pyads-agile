@@ -410,15 +410,10 @@ def test_rpc_method_call_helper_real(plc: pyads.Connection) -> None:
 
 def test_get_object_rpc_real(plc: pyads.Connection) -> None:
     object_name, rpc_method = _required_rpc_target_parts()
-    method_name = rpc_method[2:] if rpc_method.startswith("m_") else rpc_method
-    write_value, write_type = _rpc_write_param()
-    rpc_obj = plc.get_object(object_name)
+    rpc_obj = plc.get_object(
+        object_name, method_return_types={rpc_method: _rpc_return_type()}
+    )
     try:
-        # result = getattr(rpc_obj, method_name)(
-        #     write_value,
-        #     write_type,
-        #     _rpc_return_type(),
-        # )
         result = rpc_obj.m_iSimpleCall()
     except pyads.ADSError as exc:
         if getattr(exc, "err_code", None) == 1797:
@@ -429,7 +424,7 @@ def test_get_object_rpc_real(plc: pyads.Connection) -> None:
             )
         raise
 
-    expected =  _rpc_expected_result()
+    expected = _rpc_expected_result()
     if expected is not None:
         assert int(result) == expected
     else:
