@@ -45,7 +45,7 @@ This package provides Python APIs for communicating with TwinCAT devices using:
 Beyond compatibility, this fork currently focuses on improved RPC ergonomics:
 
 - **Convenient RPC object proxies.** `Connection.get_object()` exposes TwinCAT
-  function blocks as Python objects and lets you pin each method’s return type:
+  function blocks as Python objects and lets you pin each method's return type:
 
   ```python
   rpc = plc.get_object(
@@ -53,6 +53,35 @@ Beyond compatibility, this fork currently focuses on improved RPC ergonomics:
       method_return_types={"m_iSimpleCall": pyads.PLCTYPE_INT},
   )
   result = rpc.m_iSimpleCall()
+  ```
+
+- **Direct handle-based calls.** `Connection.call_rpc_method()` takes the same
+  `return_type`, `write_value`, and `write_type` hints so you can invoke TwinCAT
+  methods directly via ADS handles. `write_value` is the argument you send to the
+  PLC method and `write_type` tells pyads which PLC datatype to use when packing
+  that value:
+
+  ```python
+  result = plc.call_rpc_method(
+      "GVL.fbTestRemoteMethodCall#m_iSimpleCall",
+      return_type=pyads.PLCTYPE_INT,
+      write_value=42,
+      write_type=pyads.PLCTYPE_INT,
+  )
+  ```
+
+  For multiple parameters (or structured payloads) bundle the bytes yourself and
+  describe them with a ctypes array. Example: two `UDINT` arguments packed in
+  little-endian order:
+
+  ```python
+  payload = (ctypes.c_ubyte * 8)(*bytes.fromhex("0100000002000000"))
+  result = plc.call_rpc_method(
+      "GVL.fbTestRemoteMethodCall#m_iMultiParam",
+      return_type=pyads.PLCTYPE_INT,
+      write_value=payload,
+      write_type=type(payload),
+  )
   ```
 
 ## Features
