@@ -4,79 +4,110 @@ These tests are opt-in and intended for local/lab environments with a running
 TwinCAT ADS runtime.
 """
 
-import os
 import time
-from typing import Generator
+from pathlib import Path
+from typing import Any, Generator
 from collections import OrderedDict
 
 import pyads
 import pytest
 from pyads.pyads_ex import adsGetNetIdForPLC
 
+try:
+    import tomllib  # type: ignore[attr-defined]
+except ModuleNotFoundError:
+    try:
+        import tomli as tomllib  # type: ignore[no-redef]
+    except ModuleNotFoundError:
+        tomllib = None
+
 
 pytestmark = pytest.mark.ads_real
 
 
+def _load_real_runtime_cfg() -> dict[str, Any]:
+    cfg_path = Path(__file__).with_name("real_runtime.toml")
+    if not cfg_path.exists() or not cfg_path.is_file() or tomllib is None:
+        return {}
+    with cfg_path.open("rb") as f:
+        data = tomllib.load(f)
+    if not isinstance(data, dict):
+        return {}
+    section = data.get("real_runtime", {})
+    return section if isinstance(section, dict) else {}
+
+
+_REAL_CFG = _load_real_runtime_cfg()
+
+
+def _cfg_str(key: str, default: str = "") -> str:
+    value = _REAL_CFG.get(key, default)
+    return str(value).strip()
+
+
+def _cfg_int(key: str, default: int) -> int:
+    value = _REAL_CFG.get(key, default)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _plc_ip() -> str:
-    return os.getenv("PYADS_REAL_PLC_IP", "127.0.0.1")
+    return _cfg_str("plc_ip", "127.0.0.1")
 
 
 def _plc_ams_net_id() -> str:
-    configured = os.getenv("PYADS_REAL_PLC_AMS_NET_ID", "").strip()
+    configured = _cfg_str("plc_ams_net_id")
     if configured:
         return configured
     return adsGetNetIdForPLC(_plc_ip())
 
 
 def _plc_ams_port() -> int:
-    configured = os.getenv("PYADS_REAL_PLC_AMS_PORT", "").strip()
-    if configured:
-        return int(configured)
-    return pyads.PORT_TC3PLC1
+    return _cfg_int("plc_ams_port", pyads.PORT_TC3PLC1)
 
 
 def _required_symbol_int() -> str:
-    symbol = os.getenv("PYADS_REAL_TEST_SYMBOL_INT", "").strip()
+    symbol = _cfg_str("test_symbol_int")
     if not symbol:
-        pytest.skip("Set PYADS_REAL_TEST_SYMBOL_INT to run real read/write and notification tests.")
+        pytest.skip("Set real_runtime.test_symbol_int in tests/integration_real/real_runtime.toml.")
     return symbol
 
 
 def _required_symbol_str() -> str:
-    symbol = os.getenv("PYADS_REAL_TEST_SYMBOL_STR", "").strip()
+    symbol = _cfg_str("test_symbol_str")
     if not symbol:
-        pytest.skip("Set PYADS_REAL_TEST_SYMBOL_STR to run real STRING symbol tests.")
+        pytest.skip("Set real_runtime.test_symbol_str in tests/integration_real/real_runtime.toml.")
     return symbol
 
 
 def _required_symbol_struct() -> str:
-    symbol = os.getenv("PYADS_REAL_TEST_SYMBOL_STRUCT", "").strip()
+    symbol = _cfg_str("test_symbol_struct")
     if not symbol:
-        pytest.skip("Set PYADS_REAL_TEST_SYMBOL_STRUCT to run real structure symbol tests.")
+        pytest.skip("Set real_runtime.test_symbol_struct in tests/integration_real/real_runtime.toml.")
     return symbol
 
 
 def _required_symbol_struct_array() -> str:
-    symbol = os.getenv("PYADS_REAL_TEST_SYMBOL_STRUCT_ARRAY", "").strip()
+    symbol = _cfg_str("test_symbol_struct_array")
     if not symbol:
-        pytest.skip("Set PYADS_REAL_TEST_SYMBOL_STRUCT_ARRAY to run real structure-array symbol tests.")
+        pytest.skip("Set real_runtime.test_symbol_struct_array in tests/integration_real/real_runtime.toml.")
     return symbol
 
 
 def _struct_strlen() -> int:
-    value = os.getenv("PYADS_REAL_TEST_STRUCT_STRLEN", "").strip()
-    return int(value) if value else 80
+    return _cfg_int("test_struct_strlen", 80)
 
 
 def _struct_array_size() -> int:
-    value = os.getenv("PYADS_REAL_TEST_STRUCT_ARRAY_SIZE", "").strip()
-    return int(value) if value else 2
+    return _cfg_int("test_struct_array_size", 2)
 
 
 def _struct_def():
     return (
         ("i", pyads.PLCTYPE_INT, 1),
-        ("s", pyads.PLCTYPE_STRING, 1, _struct_strlen()),
+        ("_s", pyads.PLCTYPE_STRING, 1, _struct_strlen()),
     )
 
 
@@ -91,7 +122,7 @@ def plc() -> Generator[pyads.Connection, None, None]:
 
 
 def test_get_ams_real_runtime() -> None:
-    expected = os.getenv("PYADS_REAL_PLC_AMS_NET_ID", "").strip()
+    expected = _cfg_str("plc_ams_net_id")
     actual = adsGetNetIdForPLC(_plc_ip())
     if expected:
         assert actual == expected
@@ -196,8 +227,13 @@ def test_add_notification_real(plc: pyads.Connection) -> None:
 def test_write_control_real(plc: pyads.Connection) -> None:
     ads_state, device_state = plc.read_state()
     # Keep current state values to avoid changing runtime mode.
-    plc.write_control(ads_state, device_state, 0, pyads.PLCTYPE_INT)
+    # Stop the state if in run (5)
+    if ads_state == 5:
+        plc.write_control(6, device_state, 0, pyads.PLCTYPE_INT)
 
+    # Start the state if in stop (6)
+    if ads_state == 6:
+        plc.write_control(5, device_state, 0, pyads.PLCTYPE_INT)
 
 def test_symbol_read_real(plc: pyads.Connection) -> None:
     symbol_name = _required_symbol_int()
@@ -247,19 +283,19 @@ def test_symbol_structure_read_real(plc: pyads.Connection) -> None:
     value = symbol.read()
     assert isinstance(value, (dict, OrderedDict))
     assert "i" in value
-    assert "s" in value
+    assert "_s" in value
 
 
 def test_symbol_structure_write_real(plc: pyads.Connection) -> None:
     symbol_name = _required_symbol_struct()
     symbol = plc.get_symbol(symbol_name, structure_def=_struct_def())
     old_value = symbol.read()
-    new_value = {"i": 42, "s": "pyads-agile-struct"}
+    new_value = {"i": 42, "_s": "pyads-agile-struct"}
     try:
         symbol.write(new_value)
         read_back = symbol.read()
         assert int(read_back["i"]) == 42
-        assert str(read_back["s"]).startswith("pyads-agile-struct")
+        assert str(read_back["_s"]).startswith("pyads-agile-struct")
     finally:
         symbol.write(old_value)
 
@@ -274,7 +310,7 @@ def test_symbol_structure_array_read_real(plc: pyads.Connection) -> None:
     value = symbol.read()
     assert isinstance(value, list)
     assert len(value) == _struct_array_size()
-    assert all("i" in item and "s" in item for item in value)
+    assert all("i" in item and "_s" in item for item in value)
 
 
 def test_symbol_structure_array_write_real(plc: pyads.Connection) -> None:
@@ -282,13 +318,13 @@ def test_symbol_structure_array_write_real(plc: pyads.Connection) -> None:
     n = _struct_array_size()
     symbol = plc.get_symbol(symbol_name, structure_def=_struct_def(), array_size=n)
     old_value = symbol.read()
-    new_value = [{"i": i + 100, "s": f"pyads-arr-{i}"} for i in range(n)]
+    new_value = [{"i": i + 100, "_s": f"pyads-arr-{i}"} for i in range(n)]
     try:
         symbol.write(new_value)
         read_back = symbol.read()
         assert len(read_back) == n
         for i in range(n):
             assert int(read_back[i]["i"]) == i + 100
-            assert str(read_back[i]["s"]).startswith(f"pyads-arr-{i}")
+            assert str(read_back[i]["_s"]).startswith(f"pyads-arr-{i}")
     finally:
         symbol.write(old_value)
