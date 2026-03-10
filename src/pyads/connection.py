@@ -46,6 +46,7 @@ from .constants import (
     DATATYPE_MAP,
     ADSIGRP_SUMUP_READ,
     ADSIGRP_SUMUP_WRITE,
+    ADSIGRP_SYM_VALBYHND,
     MAX_ADS_SUB_COMMANDS,
     ads_type_to_ctype,
     PLCSimpleDataType,
@@ -95,6 +96,95 @@ from .ads import (
 )
 from .symbol import AdsSymbol
 from .utils import decode_ads
+
+
+class RpcObject:
+    """Proxy object for calling PLC RPC methods using native attribute syntax."""
+
+    def __init__(
+            self,
+            connection: "Connection",
+            object_name: str,
+            method_separator: str = "#",
+            method_prefixes: Tuple[str, ...] = ("", "m_"),
+    ) -> None:
+        self._connection = connection
+        self._object_name = object_name
+        self._method_separator = method_separator
+        self._method_prefixes = method_prefixes
+
+    def _candidate_method_names(self, method_name: str) -> List[str]:
+        names: List[str] = []
+        for prefix in self._method_prefixes:
+            if method_name.startswith(prefix):
+                candidate = method_name
+            else:
+                candidate = f"{prefix}{method_name}"
+            names.append(f"{self._object_name}{self._method_separator}{candidate}")
+        # Keep order but drop duplicates
+        return list(dict.fromkeys(names))
+
+    @staticmethod
+    def _normalize_args(
+            args: Tuple[Any, ...], kwargs: Dict[str, Any]
+    ) -> Tuple[Any, Optional[Type["PLCDataType"]], Optional[Type["PLCDataType"]], Optional[str]]:
+        write_value = kwargs.pop("write_value", None)
+        write_type = kwargs.pop("write_type", None)
+        return_type = kwargs.pop("return_type", None)
+        method_name_override = kwargs.pop("method_name", None)
+        if kwargs:
+            unknown = ", ".join(sorted(kwargs.keys()))
+            raise TypeError(f"Unknown keyword argument(s): {unknown}")
+
+        if len(args) > 3:
+            raise TypeError("Expected up to 3 positional args: value, write_type, return_type")
+        if len(args) >= 1:
+            if write_value is not None:
+                raise TypeError("write_value provided both positionally and as keyword")
+            write_value = args[0]
+        if len(args) >= 2:
+            if write_type is not None:
+                raise TypeError("write_type provided both positionally and as keyword")
+            write_type = args[1]
+        if len(args) == 3:
+            if return_type is not None:
+                raise TypeError("return_type provided both positionally and as keyword")
+            return_type = args[2]
+
+        return write_value, write_type, return_type, method_name_override
+
+    def __getattr__(self, method_name: str) -> Callable[..., Any]:
+        if method_name.startswith("_"):
+            raise AttributeError(method_name)
+
+        def _invoke(*args: Any, **kwargs: Any) -> Any:
+            write_value, write_type, return_type, method_name_override = self._normalize_args(args, kwargs)
+            if method_name_override is not None:
+                return self._connection.call_rpc_method(
+                    method_name_override,
+                    return_type=return_type,
+                    write_value=write_value,
+                    write_type=write_type,
+                )
+
+            last_error: Optional[ADSError] = None
+            for candidate_name in self._candidate_method_names(method_name):
+                try:
+                    return self._connection.call_rpc_method(
+                        candidate_name,
+                        return_type=return_type,
+                        write_value=write_value,
+                        write_type=write_type,
+                    )
+                except ADSError as exc:
+                    if exc.err_code != 1808:  # symbol not found
+                        raise
+                    last_error = exc
+            if last_error is not None:
+                raise last_error
+            raise AttributeError(method_name)
+
+        return _invoke
 
 
 class Connection(object):
@@ -488,6 +578,51 @@ class Connection(object):
                                    symbol_type=symbol_type, comment=comment)
                 symbols.append(symbol)
         return symbols
+
+    def get_object(
+            self,
+            object_name: str,
+            method_separator: str = "#",
+            method_prefixes: Tuple[str, ...] = ("", "m_"),
+    ) -> RpcObject:
+        """Create a PLC object proxy for native RPC method calls.
+
+        Example:
+            obj = plc.get_object("GVL.fbCalc")
+            obj.doCalc()
+
+        Method names are resolved in order using ``method_prefixes``.
+        The default supports both ``doCalc`` and ``m_doCalc`` style RPC names.
+        """
+        return RpcObject(
+            connection=self,
+            object_name=object_name,
+            method_separator=method_separator,
+            method_prefixes=method_prefixes,
+        )
+
+    def call_rpc_method(
+            self,
+            method_name: str,
+            return_type: Optional[Type["PLCDataType"]] = None,
+            write_value: Any = None,
+            write_type: Optional[Type["PLCDataType"]] = None,
+    ) -> Any:
+        """Call a PLC RPC method by ADS handle and release the handle afterwards."""
+        handle = self.get_handle(method_name)
+        if handle is None:
+            return None
+
+        try:
+            return self.read_write(
+                ADSIGRP_SYM_VALBYHND,
+                handle,
+                return_type,
+                write_value,
+                write_type,
+            )
+        finally:
+            self.release_handle(handle)
 
     def get_handle(self, data_name: str) -> Optional[int]:
         """Get the handle of the PLC-variable, handles obtained using this

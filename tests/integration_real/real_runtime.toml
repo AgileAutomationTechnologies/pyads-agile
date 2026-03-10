@@ -6,6 +6,7 @@ ads_target = "real"
 plc_ip = "127.0.0.1"
 plc_ams_net_id = ""
 plc_ams_port = 851
+timeout_ms = 3000
 
 # Optional symbols used by integration tests
 test_symbol_int = "GVL.TestInt"
@@ -14,3 +15,22 @@ test_symbol_struct = "GVL.TestStruct"
 test_symbol_struct_array = "GVL.TestStructArray"
 test_struct_strlen = 80
 test_struct_array_size = 2
+
+# Optional RPC method test (TwinCAT method calls via ADS handle + VALBYHND).
+# Format: "<FB instance path>#<MethodName>"
+test_rpc_method = "GVL.fbTestRemoteMethodCall#m_iSimpleCall"
+# Supported: BOOL, INT, DINT, UDINT, REAL, LREAL
+test_rpc_return_type = "INT"
+# Optional fixed expected return value; leave empty to only type-check the result.
+test_rpc_expected_result = "10"
+
+# Optional RPC input payload (choose one approach):
+# 1) Single typed parameter:
+# test_rpc_write_type = ""
+# test_rpc_write_value = ""
+#
+# 2) Raw bytes payload for complex/multiple parameters (hex, no 0x prefix):
+# test_rpc_write_bytes_hex = "0100000002000000"  # e.g. two UDINT params 1,2 (little-endian)
+test_rpc_write_type = ""
+test_rpc_write_value = ""
+test_rpc_write_bytes_hex = ""

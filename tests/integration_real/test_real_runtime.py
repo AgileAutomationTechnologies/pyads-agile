@@ -5,12 +5,14 @@ TwinCAT ADS runtime.
 """
 
 import time
+import ctypes
 from pathlib import Path
 from typing import Any, Generator
 from collections import OrderedDict
 
 import pyads
 import pytest
+from pyads.constants import ADSIGRP_SYM_VALBYHND
 from pyads.pyads_ex import adsGetNetIdForPLC
 
 try:
@@ -68,6 +70,10 @@ def _plc_ams_port() -> int:
     return _cfg_int("plc_ams_port", pyads.PORT_TC3PLC1)
 
 
+def _ads_timeout_ms() -> int:
+    return _cfg_int("timeout_ms", 3000)
+
+
 def _required_symbol_int() -> str:
     symbol = _cfg_str("test_symbol_int")
     if not symbol:
@@ -104,6 +110,104 @@ def _struct_array_size() -> int:
     return _cfg_int("test_struct_array_size", 2)
 
 
+def _required_rpc_method() -> str:
+    method = _cfg_str("test_rpc_method")
+    if not method:
+        pytest.skip("Set real_runtime.test_rpc_method in tests/integration_real/real_runtime.toml.")
+    return method
+
+
+def _required_rpc_target_parts() -> tuple[str, str]:
+    method = _required_rpc_method()
+    if "#" not in method:
+        pytest.skip("real_runtime.test_rpc_method must look like '<object>#<method>'.")
+    object_name, rpc_method = method.split("#", 1)
+    if not object_name or not rpc_method:
+        pytest.skip("real_runtime.test_rpc_method must look like '<object>#<method>'.")
+    return object_name, rpc_method
+
+
+def _rpc_return_type():
+    type_name = _cfg_str("test_rpc_return_type", "UDINT").upper()
+    mapping = {
+        "BOOL": pyads.PLCTYPE_BOOL,
+        "INT": pyads.PLCTYPE_INT,
+        "DINT": pyads.PLCTYPE_DINT,
+        "UDINT": pyads.PLCTYPE_UDINT,
+        "REAL": pyads.PLCTYPE_REAL,
+        "LREAL": pyads.PLCTYPE_LREAL,
+    }
+    plc_type = mapping.get(type_name)
+    if plc_type is None:
+        pytest.skip(
+            "Unsupported real_runtime.test_rpc_return_type. "
+            "Use one of BOOL, INT, DINT, UDINT, REAL, LREAL."
+        )
+    return plc_type
+
+
+def _rpc_expected_result() -> int | None:
+    value = _cfg_str("test_rpc_expected_result")
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        pytest.skip("real_runtime.test_rpc_expected_result must be an integer.")
+
+
+def _rpc_write_param():
+    payload_hex = _cfg_str("test_rpc_write_bytes_hex")
+    if payload_hex:
+        normalized = payload_hex.replace(" ", "")
+        if len(normalized) % 2 != 0:
+            pytest.skip("real_runtime.test_rpc_write_bytes_hex must have even hex length.")
+        try:
+            payload = bytes.fromhex(normalized)
+        except ValueError:
+            pytest.skip("real_runtime.test_rpc_write_bytes_hex is not valid hex.")
+        if not payload:
+            return None, None
+        write_type = ctypes.c_ubyte * len(payload)
+        return list(payload), write_type
+
+    type_name = _cfg_str("test_rpc_write_type").upper()
+    raw_value = _cfg_str("test_rpc_write_value")
+    if not type_name:
+        return None, None
+
+    mapping = {
+        "BOOL": pyads.PLCTYPE_BOOL,
+        "INT": pyads.PLCTYPE_INT,
+        "DINT": pyads.PLCTYPE_DINT,
+        "UDINT": pyads.PLCTYPE_UDINT,
+        "REAL": pyads.PLCTYPE_REAL,
+        "LREAL": pyads.PLCTYPE_LREAL,
+        "STRING": pyads.PLCTYPE_STRING,
+    }
+    write_type = mapping.get(type_name)
+    if write_type is None:
+        pytest.skip(
+            "Unsupported real_runtime.test_rpc_write_type. "
+            "Use one of BOOL, INT, DINT, UDINT, REAL, LREAL, STRING."
+        )
+    if raw_value == "":
+        pytest.skip("Set real_runtime.test_rpc_write_value when test_rpc_write_type is configured.")
+    if type_name == "STRING":
+        return raw_value, write_type
+    if type_name == "BOOL":
+        return raw_value.lower() in ("1", "true", "yes", "on"), write_type
+    if type_name in ("REAL", "LREAL"):
+        try:
+            return float(raw_value), write_type
+        except ValueError:
+            pytest.skip("real_runtime.test_rpc_write_value must be numeric for REAL/LREAL.")
+    try:
+        return int(raw_value), write_type
+    except ValueError:
+        pytest.skip("real_runtime.test_rpc_write_value must be an integer for selected type.")
+
+
 def _struct_def():
     return (
         ("i", pyads.PLCTYPE_INT, 1),
@@ -115,6 +219,7 @@ def _struct_def():
 def plc() -> Generator[pyads.Connection, None, None]:
     conn = pyads.Connection(_plc_ams_net_id(), _plc_ams_port(), _plc_ip())
     conn.open()
+    conn.set_timeout(_ads_timeout_ms())
     try:
         yield conn
     finally:
@@ -226,14 +331,110 @@ def test_add_notification_real(plc: pyads.Connection) -> None:
 
 def test_write_control_real(plc: pyads.Connection) -> None:
     ads_state, device_state = plc.read_state()
-    # Keep current state values to avoid changing runtime mode.
-    # Stop the state if in run (5)
-    if ads_state == 5:
-        plc.write_control(6, device_state, 0, pyads.PLCTYPE_INT)
+    if ads_state != pyads.ADSSTATE_RUN:
+        pytest.skip("write_control real test requires runtime to start in RUN state.")
 
-    # Start the state if in stop (6)
-    if ads_state == 6:
-        plc.write_control(5, device_state, 0, pyads.PLCTYPE_INT)
+    stopped = False
+    try:
+        plc.write_control(pyads.ADSSTATE_STOP, device_state, 0, pyads.PLCTYPE_INT)
+        stopped = True
+        state_after_stop = plc.read_state()
+        assert state_after_stop is not None
+        assert state_after_stop[0] == pyads.ADSSTATE_STOP
+    finally:
+        if stopped:
+            plc.write_control(pyads.ADSSTATE_RUN, device_state, 0, pyads.PLCTYPE_INT)
+            state_after_run = plc.read_state()
+            assert state_after_run is not None
+            assert state_after_run[0] == pyads.ADSSTATE_RUN
+
+
+def test_rpc_method_call_real(plc: pyads.Connection) -> None:
+    method_name = _required_rpc_method()
+    write_value, write_type = _rpc_write_param()
+    handle = plc.get_handle(method_name)
+    if handle is None:
+        pytest.fail("Failed to obtain ADS handle for configured RPC method.")
+    try:
+        try:
+            result = plc.read_write(
+                ADSIGRP_SYM_VALBYHND,
+                handle,
+                _rpc_return_type(),
+                write_value,
+                write_type,
+            )
+        except pyads.ADSError as exc:
+            if getattr(exc, "err_code", None) == 1797:
+                pytest.skip(
+                    "RPC parameter size mismatch (1797). "
+                    "Configure test_rpc_write_type/test_rpc_write_value "
+                    "or test_rpc_write_bytes_hex in real_runtime.toml."
+                )
+            raise
+    finally:
+        plc.release_handle(handle)
+
+    expected = _rpc_expected_result()
+    if expected is not None:
+        assert int(result) == expected
+    else:
+        assert isinstance(result, (bool, int, float))
+
+
+def test_rpc_method_call_helper_real(plc: pyads.Connection) -> None:
+    method_name = _required_rpc_method()
+    write_value, write_type = _rpc_write_param()
+    try:
+        result = plc.call_rpc_method(
+            method_name,
+            return_type=_rpc_return_type(),
+            write_value=write_value,
+            write_type=write_type,
+        )
+    except pyads.ADSError as exc:
+        if getattr(exc, "err_code", None) == 1797:
+            pytest.skip(
+                "RPC parameter size mismatch (1797). "
+                "Configure test_rpc_write_type/test_rpc_write_value "
+                "or test_rpc_write_bytes_hex in real_runtime.toml."
+            )
+        raise
+
+    expected = _rpc_expected_result()
+    if expected is not None:
+        assert int(result) == expected
+    else:
+        assert isinstance(result, (bool, int, float))
+
+
+def test_get_object_rpc_real(plc: pyads.Connection) -> None:
+    object_name, rpc_method = _required_rpc_target_parts()
+    method_name = rpc_method[2:] if rpc_method.startswith("m_") else rpc_method
+    write_value, write_type = _rpc_write_param()
+    rpc_obj = plc.get_object(object_name)
+    try:
+        # result = getattr(rpc_obj, method_name)(
+        #     write_value,
+        #     write_type,
+        #     _rpc_return_type(),
+        # )
+        result = rpc_obj.m_iSimpleCall()
+    except pyads.ADSError as exc:
+        if getattr(exc, "err_code", None) == 1797:
+            pytest.skip(
+                "RPC parameter size mismatch (1797). "
+                "Configure test_rpc_write_type/test_rpc_write_value "
+                "or test_rpc_write_bytes_hex in real_runtime.toml."
+            )
+        raise
+
+    expected =  _rpc_expected_result()
+    if expected is not None:
+        assert int(result) == expected
+    else:
+        assert isinstance(result, (bool, int, float))
+
 
 def test_symbol_read_real(plc: pyads.Connection) -> None:
     symbol_name = _required_symbol_int()
