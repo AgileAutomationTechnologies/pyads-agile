@@ -14,6 +14,7 @@ so existing applications can switch distributions without code changes.
 ## Attribution
 
 - Original project: `pyads` by Stefan Lehmann
+- Fork maintainer: Filippo Boido <filippo.boido@agileautomation.eu> (Agile Automation Technologies GmbH)
 - License: MIT
 - This repository keeps upstream credit and license notices as required
 

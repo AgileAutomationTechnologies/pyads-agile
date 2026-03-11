@@ -1,7 +1,7 @@
-pyads package
-=============
+pyads-agile package (import name: pyads)
+========================================
 
-The submodules of the Pyads package are listed below.
+The submodules of the pyads-agile package are listed below.
 
 pyads\.ads module
 -----------------

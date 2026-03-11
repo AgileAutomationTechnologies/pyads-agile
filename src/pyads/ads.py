@@ -1,6 +1,7 @@
 """Pythonic ADS functions.
 
 :author: Stefan Lehmann <stlm@posteo.de>
+:maintainer: Filippo Boido <filippo.boido@agileautomation.eu> (Agile Automation Technologies GmbH)
 :license: MIT, see license file or https://opensource.org/licenses/MIT
 :created on: 2018-06-11 18:15:53
 
