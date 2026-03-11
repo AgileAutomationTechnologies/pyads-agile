@@ -45,7 +45,8 @@ This package provides Python APIs for communicating with TwinCAT devices using:
 Beyond compatibility, this fork currently focuses on improved RPC ergonomics:
 
 - **Convenient RPC object proxies.** `Connection.get_object()` exposes TwinCAT
-  function blocks as Python objects and lets you pin each method's return type:
+  function blocks as Python objects and lets you configure return and parameter
+  types per method:
 
   ```python
   rpc = plc.get_object(
@@ -55,11 +56,19 @@ Beyond compatibility, this fork currently focuses on improved RPC ergonomics:
   result = rpc.m_iSimpleCall()
   ```
 
-- **Direct handle-based calls.** `Connection.call_rpc_method()` takes the same
-  `return_type`, `write_value`, and `write_type` hints so you can invoke TwinCAT
-  methods directly via ADS handles. `write_value` is the argument you send to the
-  PLC method and `write_type` tells pyads which PLC datatype to use when packing
-  that value:
+- **Multi-parameter RPC calls with native syntax.** Configure method signatures
+  once and then call methods like normal Python methods:
+
+  ```python
+  rpc = plc.get_object(
+      "GVL.fbTestRemoteMethodCall",
+      method_return_types={"m_iSum": pyads.PLCTYPE_INT},
+      method_parameters={"m_iSum": [pyads.PLCTYPE_INT, pyads.PLCTYPE_INT]},
+  )
+  result = rpc.m_iSum(5, 5)
+  ```
+
+  You can still use low-level direct calls when needed:
 
   ```python
   result = plc.call_rpc_method(
@@ -67,20 +76,6 @@ Beyond compatibility, this fork currently focuses on improved RPC ergonomics:
       return_type=pyads.PLCTYPE_INT,
       write_value=42,
       write_type=pyads.PLCTYPE_INT,
-  )
-  ```
-
-  For multiple parameters (or structured payloads) bundle the bytes yourself and
-  describe them with a ctypes array. Example: two `UDINT` arguments packed in
-  little-endian order:
-
-  ```python
-  payload = (ctypes.c_ubyte * 8)(*bytes.fromhex("0100000002000000"))
-  result = plc.call_rpc_method(
-      "GVL.fbTestRemoteMethodCall#m_iMultiParam",
-      return_type=pyads.PLCTYPE_INT,
-      write_value=payload,
-      write_type=type(payload),
   )
   ```
 
@@ -107,4 +102,10 @@ plc.close()
 
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md).
+## Contribution Policy
+
+This repository is maintained on a best-effort basis for internal and product
+needs.
+
+At this time, we do not accept unsolicited pull requests, and we may not be
+able to respond to feature requests or general support issues.
