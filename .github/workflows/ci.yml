@@ -36,8 +36,10 @@ jobs:
         python -m pip install .[tests]
         python -m pip install coveralls
     - name: Test with pytest
+      env:
+        PYADS_TEST_TARGET: fake
       run: |
-        pytest -v --cov pyads
+        pytest -v --cov pyads --ads-target=fake
     - name: Upload coverage result
       if: matrix.python-version == '3.13'
       env:
