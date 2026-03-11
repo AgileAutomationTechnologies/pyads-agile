@@ -1,5 +1,5 @@
 #
-# This workflow will build multiple Python wheels and upload the packages when a release is created
+# This workflow builds wheels/sdist and publishes to TestPyPI (manual) or PyPI (release/manual)
 # For more information see: https://cibuildwheel.pypa.io/en/stable/ci-services/#github-actions
 #
 
@@ -7,9 +7,18 @@ name: Upload Python Package
 
 on:
   release:
-    types: [created]
+    types: [published]
 
   workflow_dispatch: # allow running the workflow manually
+    inputs:
+      repository:
+        description: "Target package repository"
+        required: true
+        default: "testpypi"
+        type: choice
+        options:
+          - testpypi
+          - pypi
 
 jobs:
 
@@ -98,14 +107,33 @@ jobs:
           name: cibw-sdist
           path: dist/*.tar.gz
 
-  upload_all:
-      name: Upload to PyPi
-      needs: [build_wheels, build_sdist, test_wheels, test_editable]
-      environment: pypi
-      permissions:
-        id-token: write
-      runs-on: ubuntu-latest
-      steps:
+  upload_testpypi:
+    name: Upload to TestPyPI
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.repository == 'testpypi' }}
+    needs: [build_wheels, build_sdist, test_wheels, test_editable]
+    environment: testpypi
+    permissions:
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: cibw-*
+          path: dist
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  upload_pypi:
+    name: Upload to PyPI
+    if: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.repository == 'pypi') }}
+    needs: [build_wheels, build_sdist, test_wheels, test_editable]
+    environment: pypi
+    permissions:
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
       - uses: actions/download-artifact@v5
         with:
           pattern: cibw-*

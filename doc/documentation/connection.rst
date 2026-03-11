@@ -31,6 +31,65 @@ A context notation (using ``with:``) can be used to open a connection:
 The context manager will make sure the connection is closed, either when
 the ``with`` clause runs out, or an uncaught error is thrown.
 
+RPC method calls
+^^^^^^^^^^^^^^^^
+
+TwinCAT requirement:
+Each callable RPC method must be annotated with ``{attribute 'TcRpcEnable'}``
+directly above the method declaration in PLC code.
+
+Native object-style RPC calls
+"""""""""""""""""""""""""""""
+
+Use :py:meth:`.Connection.get_object` to obtain an RPC proxy for a function
+block. Configure return types in ``method_return_types`` and parameter types in
+``method_parameters``.
+
+Example:
+
+.. code:: python
+
+   import pyads
+
+   def main():
+       plc = pyads.Connection("127.0.0.1.1.1", 851, "127.0.0.1")
+       plc.open()
+       try:
+           rpc = plc.get_object(
+               "GVL.fbTestRemoteMethodCall",
+               method_return_types={
+                   "m_iSimpleCall": pyads.PLCTYPE_INT,
+                   "m_iSum": pyads.PLCTYPE_INT,
+               },
+               method_parameters={
+                   "m_iSum": [pyads.PLCTYPE_INT, pyads.PLCTYPE_INT],
+               },
+           )
+
+           print("Calling method m_iSimpleCall()")
+           print("Result: {}".format(rpc.m_iSimpleCall()))
+
+           print("Calling method m_iSum() with parameters 5 and 10")
+           print("Result: {}".format(rpc.m_iSum(5, 10)))
+       finally:
+           plc.close()
+
+
+   if __name__ == "__main__":
+       main()
+
+Low-level RPC call by fully-qualified method name
+"""""""""""""""""""""""""""""""""""""""""""""""""
+
+For explicit handle-based calls, use :py:meth:`.Connection.call_rpc_method`.
+
+.. code:: python
+
+   >>> result = plc.call_rpc_method(
+   ...     "GVL.fbTestRemoteMethodCall#m_iSimpleCall",
+   ...     return_type=pyads.PLCTYPE_INT,
+   ... )
+
 Read and write by name
 ^^^^^^^^^^^^^^^^^^^^^^^
 

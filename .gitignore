@@ -40,3 +40,4 @@ coverage
 
 # vscode files
 .vscode/
+PUBLISH_COMMANDS.md

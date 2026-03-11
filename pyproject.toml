@@ -51,7 +51,10 @@ dev = [
 ]
 
 [project.urls]
-Upstream = "https://github.com/stlehmann/pyads"
+Homepage = "https://github.com/AgileAutomationTechnologies/pyads-agile"
+Repository = "https://github.com/AgileAutomationTechnologies/pyads-agile.git"
+Issues = "https://github.com/AgileAutomationTechnologies/pyads-agile/issues"
+Documentation = "https://agileautomationtechnologies.github.io/pyads-agile/"
 
 [build-system]
 requires = ["setuptools >= 77.0.3", "wheel"]

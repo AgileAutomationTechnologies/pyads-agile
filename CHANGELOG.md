@@ -12,6 +12,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Removed
 
+## [0.1.1] - 2026-03-11
+
+### Added
+- Native RPC object proxy API via `Connection.get_object()` with declarative
+  method signatures:
+  - `method_return_types` for per-method return type mapping
+  - `method_parameters` for per-method parameter type mapping
+- Convenience RPC call helper: `Connection.call_rpc_method(...)`.
+- Real-target integration tests for RPC helper and object-style RPC calls in
+  `tests/integration_real/test_real_runtime.py`.
+- GitHub Pages workflow for publishing Sphinx docs:
+  `.github/workflows/docs-pages.yml`.
+- Trusted-publishing release workflow improvements for TestPyPI/PyPI target
+  selection in `.github/workflows/python-publish.yml`.
+
+### Changed
+- RPC docs added to `doc/documentation/connection.rst` with examples and
+  TwinCAT `{attribute 'TcRpcEnable'}` requirement.
+- README updated for new RPC usage, contribution policy, and versioning policy.
+- Project URLs now point to the `AgileAutomationTechnologies/pyads-agile`
+  repository, including documentation link.
+
+### Removed
+
 ## [0.1.0] - 2026-03-11
 
 ### Added
