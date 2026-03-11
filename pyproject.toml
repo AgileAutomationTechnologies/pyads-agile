@@ -73,7 +73,7 @@ pyads = ["adslib/**"]
 version = {attr = "pyads.__version__"}
 
 [tool.cibuildwheel.linux]
-before-all = "apt install -y meson"
+before-all = "python -m pip install --upgrade pip meson"
 
 [tool.tox]
 legacy_tox_ini = """
