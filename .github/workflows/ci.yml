@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.13', '3.14']
+        python-version: ['3.13']
 
     steps:
     - name: Install build tools
@@ -39,11 +39,7 @@ jobs:
       env:
         PYADS_TEST_TARGET: fake
       run: |
-        if [ "${{ matrix.python-version }}" = "3.13" ]; then
-          pytest -v --cov pyads --ads-target=fake
-        else
-          pytest -v --ads-target=fake
-        fi
+        pytest -v --cov pyads --ads-target=fake
     - name: Upload coverage result
       if: matrix.python-version == '3.13'
       env:

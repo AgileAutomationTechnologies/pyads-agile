@@ -26,6 +26,8 @@ Run the default test suite:
 pytest
 ```
 
+CI currently runs the fake-target suite on Python 3.13.
+
 Run real-target integration tests when applicable:
 
 ```bash
