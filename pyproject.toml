@@ -73,7 +73,7 @@ pyads = ["adslib/**"]
 version = {attr = "pyads.__version__"}
 
 [tool.cibuildwheel.linux]
-before-all = "python -m pip install --upgrade pip meson"
+before-all = "dnf install -y meson ninja-build || yum install -y meson ninja-build || python -m pip install --upgrade pip meson ninja"
 
 [tool.tox]
 legacy_tox_ini = """
