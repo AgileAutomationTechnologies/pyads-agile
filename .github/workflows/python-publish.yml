@@ -68,6 +68,7 @@ jobs:
           CIBW_SKIP: "*-musllinux_*"
           CIBW_BEFORE_ALL_LINUX: "/opt/python/cp39-cp39/bin/python -m pip install --upgrade pip meson ninja"
           CIBW_BEFORE_ALL_MACOS: "python -m pip install --upgrade pip meson ninja"
+          CIBW_ENVIRONMENT_LINUX: "PATH=$PATH:/opt/python/cp39-cp39/bin"
           # Full matrix: https://cibuildwheel.pypa.io/en/stable/options/#build-skip
 
       - uses: actions/upload-artifact@v4

@@ -78,13 +78,6 @@ class CustomBuildPy(build_py):
         required = ("meson", "ninja")
         missing = [tool for tool in required if shutil.which(tool) is None]
         if missing:
-            # cibuildwheel's isolated build env may not ship pip; bootstrap it if needed
-            try:
-                import pip  # noqa: F401
-            except ModuleNotFoundError:
-                subprocess.check_call(
-                    [sys.executable, "-m", "ensurepip", "--upgrade"]
-                )
             subprocess.check_call(
                 [sys.executable, "-m", "pip", "install", "--upgrade", *missing]
             )
