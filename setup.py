@@ -31,7 +31,6 @@ class CustomBuildPy(build_py):
     def compile_adslib(cls) -> bool:
         """Return `True` if adslib was actually compiled."""
         if cls.platform_is_unix():
-            cls._ensure_build_tools()
             cls._clean_library()
             cls._compile_library()
             cls._ensure_unix_artifact()
@@ -71,16 +70,6 @@ class CustomBuildPy(build_py):
                 if so_path.exists():
                     os.remove(so_path)
                 shutil.copy2(dylib_path, so_path)
-
-    @staticmethod
-    def _ensure_build_tools():
-        """Install meson/ninja if missing on the current interpreter."""
-        required = ("meson", "ninja")
-        missing = [tool for tool in required if shutil.which(tool) is None]
-        if missing:
-            subprocess.check_call(
-                [sys.executable, "-m", "pip", "install", "--upgrade", *missing]
-            )
 
     @staticmethod
     def platform_is_unix():
