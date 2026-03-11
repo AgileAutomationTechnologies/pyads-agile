@@ -33,6 +33,11 @@ Import stays compatible:
 import pyads
 ```
 
+## Versioning
+
+`pyads-agile` uses its own independent Semantic Versioning (`MAJOR.MINOR.PATCH`).
+It does not mirror upstream `pyads` version numbers.
+
 ## Scope
 
 This package provides Python APIs for communicating with TwinCAT devices using:
@@ -47,6 +52,9 @@ Beyond compatibility, this fork currently focuses on improved RPC ergonomics:
 - **Convenient RPC object proxies.** `Connection.get_object()` exposes TwinCAT
   function blocks as Python objects and lets you configure return and parameter
   types per method:
+
+  TwinCAT requirement: each callable method must be annotated in PLC code with
+  `{attribute 'TcRpcEnable'}` directly above the method declaration.
 
   ```python
   rpc = plc.get_object(
@@ -99,8 +107,6 @@ i = plc.read_by_name("GVL.int_val")
 plc.write_by_name("GVL.int_val", i)
 plc.close()
 ```
-
-## Contributing
 
 ## Contribution Policy
 

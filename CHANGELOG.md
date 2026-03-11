@@ -12,6 +12,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Removed
 
+## [0.1.0] - 2026-03-11
+
+### Added
+
+### Changed
+- Switched `pyads-agile` to independent Semantic Versioning (`MAJOR.MINOR.PATCH`)
+  starting at `0.1.0`.
+
+### Removed
+
 ## 3.6
 
 ### Added

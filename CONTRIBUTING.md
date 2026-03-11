@@ -7,6 +7,7 @@ This file documents the minimal internal workflow for maintainers of
 
 - This repository is maintained for internal and product needs.
 - Unsolicited external pull requests are not part of the normal workflow.
+- Releases follow independent Semantic Versioning (`MAJOR.MINOR.PATCH`).
 
 ## Internal Workflow
 
