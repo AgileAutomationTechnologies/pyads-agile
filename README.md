@@ -10,6 +10,7 @@ https://github.com/stlehmann/pyads
 `pyads-agile` intentionally stays drop-in compatible with `pyads`. The public API,
 module name (`import pyads`), and supported interpreter/OS matrix mirror upstream,
 so existing applications can switch distributions without code changes.
+Current support target is Python 3.13 and 3.14.
 
 ## Attribution
 

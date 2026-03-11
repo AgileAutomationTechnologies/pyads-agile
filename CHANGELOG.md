@@ -33,6 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - README updated for new RPC usage, contribution policy, and versioning policy.
 - Project URLs now point to the `AgileAutomationTechnologies/pyads-agile`
   repository, including documentation link.
+- Supported Python versions narrowed to 3.13 and 3.14.
 
 ### Removed
 
