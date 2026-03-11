@@ -41,8 +41,13 @@ class CustomBuildPy(build_py):
     @staticmethod
     def _compile_library():
         """Use `make` to build adslib - build is done in-place."""
-        # Produce `adslib.so`:
-        subprocess.call(["make", "-C", "adslib"])
+        env = os.environ.copy()
+        if sys.platform.startswith("linux"):
+            existing = env.get("LDFLAGS", "")
+            flag = "-pthread"
+            if flag not in existing.split():
+                env["LDFLAGS"] = (existing + " " + flag).strip()
+        subprocess.check_call(["make", "-C", "adslib"], env=env)
 
     @staticmethod
     def _clean_library():
