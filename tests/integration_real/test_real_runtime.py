@@ -417,7 +417,6 @@ def test_get_object_rpc_real(plc: pyads.Connection) -> None:
     rpc_obj = plc.get_object(
         object_name,
         method_return_types={rpc_method: _rpc_return_type()},
-        method_parameters=method_parameters,
     )
     try:
         if write_value is None:
