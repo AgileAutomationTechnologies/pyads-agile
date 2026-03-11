@@ -66,6 +66,8 @@ jobs:
           CIBW_BUILD: "cp314-*"
           # Skip the versions that give errors during building:
           CIBW_SKIP: "*-musllinux_*"
+          CIBW_BEFORE_ALL_LINUX: "python -m pip install --upgrade pip meson ninja"
+          CIBW_BEFORE_ALL_MACOS: "python -m pip install --upgrade pip meson ninja"
           # Full matrix: https://cibuildwheel.pypa.io/en/stable/options/#build-skip
 
       - uses: actions/upload-artifact@v4
