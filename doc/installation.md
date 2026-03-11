@@ -3,28 +3,28 @@
 From PyPi:
 
 ```bash
-pip install pyads
+pip install pyads-agile
 ```
 
 From conda-forge:
 
 ```bash
-conda install pyads
+conda install pyads-agile
 ```
 
 From source:
 
 ```bash
-git clone https://github.com/stlehmann/pyads.git --recursive
-cd pyads
+git clone https://github.com/AgileAutomationTechnologies/pyads-agile.git --recursive
+cd pyads-agile
 pip install .
 ```
 
-Note: pyads only supports python 3.8 and above.
+Note: pyads-agile is currently validated on Python 3.13 and above. The import name stays `pyads`.
 
 ## Installation on Linux
 
-For Linux *pyads* uses the ADS library *adslib.so* which needs to be compiled
+For Linux *pyads-agile* (module name `pyads`) uses the ADS library *adslib.so* which needs to be compiled
 from source if you use a source package. This should not be an issue, however
 if you should encounter any problems with the *adslib.so* please contact me.
 
@@ -43,7 +43,7 @@ For containers consider using a separate build stage to keep image size small.
 
 ## Installation on Windows
 
-On Windows *pyads* uses the *TcADSDll.dll* which is provided when you install
+On Windows *pyads-agile* uses the *TcADSDll.dll* which is provided when you install
 Beckhoffs TwinCAT on your machine. Make sure that it is accessible and 
 installed in your PATH.
 
