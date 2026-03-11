@@ -1,4 +1,5 @@
 import os
+import shutil
 import struct
 import subprocess
 import sys
@@ -32,6 +33,7 @@ class CustomBuildPy(build_py):
         if cls.platform_is_unix():
             cls._clean_library()
             cls._compile_library()
+            cls._ensure_unix_artifact()
             return True
 
         return False
@@ -57,6 +59,17 @@ class CustomBuildPy(build_py):
 
         if adslib_file.is_file():
             os.remove(adslib_file)
+
+    @staticmethod
+    def _ensure_unix_artifact():
+        """macOS builds produce a `.dylib`; replicate it as `.so` for pyads."""
+        so_path = adslib_folder / "adslib.so"
+        if sys.platform.startswith("darwin"):
+            dylib_path = adslib_folder / "adslib.dylib"
+            if dylib_path.exists():
+                if so_path.exists():
+                    os.remove(so_path)
+                shutil.copy2(dylib_path, so_path)
 
     @staticmethod
     def platform_is_unix():
