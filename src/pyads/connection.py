@@ -18,7 +18,7 @@ from ctypes import (
 )
 from datetime import datetime
 from functools import partial
-from typing import Optional, Union, Tuple, Any, Type, Callable, Dict, List, cast
+from typing import Optional, Union, Tuple, Any, Type, Callable, Dict, List, Sequence, cast
 
 # noinspection PyUnresolvedReferences
 from .constants import (
@@ -76,6 +76,8 @@ from .pyads_ex import (
     adsSyncAddDeviceNotificationReqEx,
     adsSyncDelDeviceNotificationReqEx,
     adsSyncSetTimeoutEx,
+    type_is_string,
+    type_is_wstring,
     ADSError,
 )
 from .structs import (
@@ -108,6 +110,9 @@ class RpcObject:
             method_separator: str = "#",
             method_prefixes: Tuple[str, ...] = ("", "m_"),
             method_return_types: Optional[Dict[str, Type["PLCDataType"]]] = None,
+            method_parameters: Optional[
+                Dict[str, Sequence[Type["PLCDataType"]]]
+            ] = None,
     ) -> None:
         self._connection = connection
         self._object_name = object_name
@@ -116,6 +121,15 @@ class RpcObject:
         self._method_return_types: Dict[str, Type["PLCDataType"]] = (
             method_return_types.copy() if method_return_types else {}
         )
+        self._method_parameters: Dict[str, Tuple[Type["PLCDataType"], ...]] = (
+            {name: tuple(values) for name, values in method_parameters.items()}
+            if method_parameters
+            else {}
+        )
+        # If a method is declared in `method_return_types` but no explicit
+        # parameter signature is provided, treat it as a zero-argument RPC.
+        for method_name in self._method_return_types:
+            self._method_parameters.setdefault(method_name, tuple())
         self._return_spec_cache: Dict[
             str, Tuple[Optional[Type["PLCDataType"]], bool]
         ] = {}
@@ -202,7 +216,7 @@ class RpcObject:
         return spec
 
     @staticmethod
-    def _normalize_args(
+    def _normalize_control_args(
             args: Tuple[Any, ...], kwargs: Dict[str, Any]
     ) -> Tuple[Any, Optional[Type["PLCDataType"]], Optional[Type["PLCDataType"]], Optional[str]]:
         write_value = kwargs.pop("write_value", None)
@@ -230,12 +244,105 @@ class RpcObject:
 
         return write_value, write_type, return_type, method_name_override
 
+    def _parameter_types_for(self, method_name: str) -> Tuple[Type["PLCDataType"], ...]:
+        candidates = {method_name}
+        for prefix in self._method_prefixes:
+            if method_name.startswith(prefix):
+                candidates.add(method_name[len(prefix):])
+            else:
+                candidates.add(f"{prefix}{method_name}")
+        for candidate in candidates:
+            values = self._method_parameters.get(candidate)
+            if values is not None:
+                return values
+        return tuple()
+
+    @staticmethod
+    def _pack_single_argument(value: Any, plc_type: Type["PLCDataType"]) -> bytes:
+        if type_is_string(plc_type):
+            return value.encode("utf-8") + b"\x00"
+        if type_is_wstring(plc_type):
+            return value.encode("utf-16-le")
+
+        if type(plc_type).__name__ == "PyCArrayType":
+            data = plc_type(*value)
+        elif type(value) is plc_type:
+            data = value
+        else:
+            data = plc_type(value)
+
+        raw = (c_ubyte * sizeof(data))()
+        memmove(raw, addressof(data), sizeof(data))
+        return bytes(raw)
+
+    def _pack_method_args(
+            self,
+            method_name: str,
+            args: Tuple[Any, ...],
+    ) -> Tuple[Any, Optional[Type["PLCDataType"]]]:
+        parameter_types = self._parameter_types_for(method_name)
+
+        if not parameter_types:
+            if len(args) == 0:
+                return None, None
+            if len(args) == 1:
+                raise TypeError(
+                    "Parameter types are not configured for this method. "
+                    "Pass `method_parameters=` to get_object, "
+                    "or call with explicit write_type."
+                )
+            raise TypeError(
+                "Parameter types are not configured for this method. "
+                "Use explicit write_type or configure method parameters."
+            )
+
+        if len(args) != len(parameter_types):
+            raise TypeError(
+                f"{method_name} expects {len(parameter_types)} parameter(s), "
+                f"got {len(args)}."
+            )
+
+        payload = bytearray()
+        for value, plc_type in zip(args, parameter_types):
+            payload.extend(self._pack_single_argument(value, plc_type))
+
+        if not payload:
+            return None, None
+
+        write_type = c_ubyte * len(payload)
+        return list(payload), write_type
+
     def __getattr__(self, method_name: str) -> Callable[..., Any]:
         if method_name.startswith("_"):
             raise AttributeError(method_name)
 
         def _invoke(*args: Any, **kwargs: Any) -> Any:
-            write_value, write_type, return_type, method_name_override = self._normalize_args(args, kwargs)
+            control_keys = {"write_value", "write_type", "return_type", "method_name"}
+            has_control_args = any(key in kwargs for key in control_keys)
+            if has_control_args:
+                write_value, write_type, return_type, method_name_override = self._normalize_control_args(args, kwargs)
+            else:
+                if kwargs:
+                    unknown = ", ".join(sorted(kwargs.keys()))
+                    raise TypeError(f"Unknown keyword argument(s): {unknown}")
+                is_legacy_positional = (
+                    len(args) <= 3
+                    and (
+                        len(args) == 0
+                        or (len(args) >= 2 and isinstance(args[1], type))
+                    )
+                    and not self._parameter_types_for(method_name)
+                )
+                if is_legacy_positional:
+                    write_value = args[0] if len(args) >= 1 else None
+                    write_type = args[1] if len(args) >= 2 else None
+                    return_type = args[2] if len(args) == 3 else None
+                    method_name_override = None
+                else:
+                    write_value, write_type = self._pack_method_args(method_name, args)
+                    return_type = None
+                    method_name_override = None
+
             if method_name_override is not None:
                 return self._connection.call_rpc_method(
                     method_name_override,
@@ -672,12 +779,19 @@ class Connection(object):
             method_separator: str = "#",
             method_prefixes: Tuple[str, ...] = ("", "m_"),
             method_return_types: Optional[Dict[str, Type["PLCDataType"]]] = None,
+            method_parameters: Optional[
+                Dict[str, Sequence[Type["PLCDataType"]]]
+            ] = None,
     ) -> RpcObject:
         """Create a PLC object proxy for native RPC method calls.
 
         Example:
-            obj = plc.get_object("GVL.fbCalc")
-            obj.doCalc()
+            rpc = plc.get_object(
+                "GVL.fbTestRemoteMethodCall",
+                method_return_types={"m_iSum": pyads.PLCTYPE_INT},
+                method_parameters={"m_iSum": [pyads.PLCTYPE_INT, pyads.PLCTYPE_INT]},
+            )
+            result = rpc.m_iSum(5, 5)
 
         Method names are resolved in order using ``method_prefixes``.
         The default supports both ``doCalc`` and ``m_doCalc`` style RPC names.
@@ -688,6 +802,7 @@ class Connection(object):
             method_separator=method_separator,
             method_prefixes=method_prefixes,
             method_return_types=method_return_types,
+            method_parameters=method_parameters,
         )
 
     def call_rpc_method(

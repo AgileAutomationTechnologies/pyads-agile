@@ -410,11 +410,20 @@ def test_rpc_method_call_helper_real(plc: pyads.Connection) -> None:
 
 def test_get_object_rpc_real(plc: pyads.Connection) -> None:
     object_name, rpc_method = _required_rpc_target_parts()
+    write_value, write_type = _rpc_write_param()
+    method_parameters = (
+        {rpc_method: [write_type]} if write_type is not None else None
+    )
     rpc_obj = plc.get_object(
-        object_name, method_return_types={rpc_method: _rpc_return_type()}
+        object_name,
+        method_return_types={rpc_method: _rpc_return_type()},
+        method_parameters=method_parameters,
     )
     try:
-        result = rpc_obj.m_iSimpleCall()
+        if write_value is None:
+            result = getattr(rpc_obj, rpc_method)()
+        else:
+            result = getattr(rpc_obj, rpc_method)(write_value)
     except pyads.ADSError as exc:
         if getattr(exc, "err_code", None) == 1797:
             pytest.skip(
@@ -429,6 +438,26 @@ def test_get_object_rpc_real(plc: pyads.Connection) -> None:
         assert int(result) == expected
     else:
         assert isinstance(result, (bool, int, float))
+
+
+def test_get_object_rpc_multi_param_real(plc: pyads.Connection) -> None:
+    object_name, _ = _required_rpc_target_parts()
+    rpc = plc.get_object(
+        object_name,
+        method_return_types={"m_iSum": pyads.PLCTYPE_INT},
+        method_parameters={"m_iSum": [pyads.PLCTYPE_INT, pyads.PLCTYPE_INT]},
+    )
+    try:
+        result = rpc.m_iSum(5, 5)
+    except pyads.ADSError as exc:
+        if getattr(exc, "err_code", None) == 1808:
+            pytest.skip(
+                "RPC method m_iSum not found on configured object. "
+                "Adjust PLC code or real_runtime.test_rpc_method object."
+            )
+        raise
+
+    assert int(result) == 10
 
 
 def test_symbol_read_real(plc: pyads.Connection) -> None:
