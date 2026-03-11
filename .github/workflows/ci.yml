@@ -39,7 +39,11 @@ jobs:
       env:
         PYADS_TEST_TARGET: fake
       run: |
-        pytest -v --cov pyads --ads-target=fake
+        if [ "${{ matrix.python-version }}" = "3.13" ]; then
+          pytest -v --cov pyads --ads-target=fake
+        else
+          pytest -v --ads-target=fake
+        fi
     - name: Upload coverage result
       if: matrix.python-version == '3.13'
       env:
