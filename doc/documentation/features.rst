@@ -46,7 +46,9 @@ Async RPC and stepchain integration
 
   * ``accepted`` phase (RPC returned)
   * ``done`` phase (completion detected via configured status symbols)
-  * awaitable operation behavior (``await op`` == ``await op.done``)
+  * awaitable operation behavior returning the latest ADS status snapshot
+    (``await op`` == ``await op.done``)
+  * shorthand alias :pydata:`pyads.StepChainOp` for the common ``Any`` payload case
 * Auto-generated request IDs for stepchain methods when the request id argument
   is omitted.
 * Default stepchain naming aligned with common TwinCAT conventions:

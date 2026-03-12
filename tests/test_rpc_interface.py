@@ -1,6 +1,6 @@
 import asyncio
 import types
-from typing import Awaitable
+from typing import Any, Awaitable
 
 import pyads
 import pytest
@@ -90,8 +90,8 @@ def test_get_object_rejects_class_without_ads_path():
 def test_ads_stepchain_path_adds_stepchain_metadata():
     @pyads.ads_stepchain_path("GVL.fbStepChain")
     class FB_StepChain:
-        def m_Start(self, udiRequestId: pyads.PLCTYPE_UDINT) -> pyads.PLCTYPE_BOOL:
-            pass
+        def m_Start(self, udiRequestId: pyads.PLCTYPE_UDINT) -> pyads.StepChainOperation[Any]:
+            ...
 
     definition = resolve_rpc_interface_definition(FB_StepChain)
     assert definition.object_name == "GVL.fbStepChain"
@@ -102,13 +102,14 @@ def test_ads_stepchain_path_adds_stepchain_metadata():
     assert definition.stepchain_config.step_name_field == "sStepName"
     assert definition.method_argument_names["m_Start"] == ("udiRequestId",)
     assert definition.stepchain_config.completion == "poll"
+    assert definition.method_return_types["m_Start"] == pyads.PLCTYPE_BOOL
 
 
 def test_ads_stepchain_path_completion_notify_is_supported():
     @pyads.ads_stepchain_path("GVL.fbStepChain", completion="notify")
     class FB_StepChainNotify:
-        def m_Start(self, udiRequestId: pyads.PLCTYPE_UDINT) -> pyads.PLCTYPE_BOOL:
-            pass
+        def m_Start(self, udiRequestId: pyads.PLCTYPE_UDINT) -> pyads.StepChainOperation[Any]:
+            ...
 
     definition = resolve_rpc_interface_definition(FB_StepChainNotify)
     assert definition.stepchain_config is not None
@@ -119,8 +120,8 @@ def test_ads_stepchain_path_rejects_invalid_completion():
     with pytest.raises(ValueError, match="completion must be either 'poll' or 'notify'"):
         @pyads.ads_stepchain_path("GVL.fbStepChain", completion="invalid")
         class FB_Invalid:
-            def m_Start(self, udiRequestId: pyads.PLCTYPE_UDINT) -> pyads.PLCTYPE_BOOL:
-                pass
+            def m_Start(self, udiRequestId: pyads.PLCTYPE_UDINT) -> pyads.StepChainOperation[Any]:
+                ...
 
 
 def test_ads_async_path_adds_metadata_and_unwraps_future_return_type():

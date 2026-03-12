@@ -128,7 +128,7 @@ Beyond compatibility, this fork currently focuses on improved RPC ergonomics:
   asyncio.run(main())
   ```
 
-- **Async wrappers for Stefan's synchronous Connection API.**
+- **Async wrappers for the synchronous pyads Connection API.**
   `AsyncConnection` now mirrors the core synchronous read/write surface while
   keeping single-threaded serialized execution under the hood. For most methods
   you get both:
@@ -188,7 +188,9 @@ Beyond compatibility, this fork currently focuses on improved RPC ergonomics:
   containing:
   - `accepted`: RPC-return phase
   - `done`: completion phase based on PLC status fields
-  - `await op`: same as `await op.done`
+  - `await op`: completion snapshot with the latest ADS status symbol values
+  Use the convenience alias `pyads.StepChainOp` when you don't need to
+  specialize the generic payload type.
 
   ```python
   @pyads.ads_stepchain_path(
@@ -207,21 +209,24 @@ Beyond compatibility, this fork currently focuses on improved RPC ergonomics:
       def m_xStartStepChain(
           self,
           udiRequestId: pyads.PLCTYPE_UDINT,
-      ) -> pyads.PLCTYPE_BOOL:
+      ) -> pyads.StepChainOp:
           ...
 
   async def run_stepchain(plc: pyads.AsyncConnection) -> None:
       rpc = plc.get_async_object(FB_TestRemoteStepChainMethodCall)
+      status_root = rpc.status_symbol()
 
       # udiRequestId is auto-generated if omitted.
-      op = rpc.m_xStartStepChain()
+      op: pyads.StepChainOp = rpc.m_xStartStepChain()
 
       accepted = await op.accepted
       if not accepted:
           raise RuntimeError("Stepchain start rejected by PLC.")
 
-      # Wait until status reports completion or error.
-      await op
+      # Wait until status reports completion or error and capture snapshot.
+      completion_snapshot = await op
+      request_id_symbol = f"{status_root}.udiRequestId"
+      print("Completed request", completion_snapshot[request_id_symbol])
 
       # Built-in framework status read (predefined structure)
       status = await rpc.read_status()

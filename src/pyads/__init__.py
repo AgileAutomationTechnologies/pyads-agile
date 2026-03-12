@@ -6,6 +6,8 @@
 :created on: 2018-06-11 18:15:53
 
 """
+from typing import Any, TypeAlias
+
 from .structs import AmsAddr, NotificationAttrib
 
 from .ads import (
@@ -121,4 +123,8 @@ from .constants import (
 
 from .symbol import AdsSymbol
 
-__version__ = '0.3.0'
+# Convenience alias so users can write ``pyads.StepChainOp`` instead of
+# ``pyads.StepChainOperation[Any]`` when the done payload is not specialized.
+StepChainOp: TypeAlias = StepChainOperation[Any]
+
+__version__ = '0.3.1'

@@ -220,10 +220,13 @@ Stepchain async RPC via ``@ads_stepchain_path``
 
 For long-running PLC workflows (for example Schrittkette/state-machine style
 methods), use :py:func:`pyads.ads_stepchain_path`. The async proxy returns a
-:py:class:`pyads.StepChainOperation` that tracks two phases:
+:py:class:`pyads.StepChainOperation` (or :pydata:`pyads.StepChainOp` convenience
+alias) that tracks two phases:
 
 * ``accepted``: RPC method returned
 * ``done``: stepchain completion detected from status symbols
+* ``await op`` / ``await op.done``: snapshot dictionary of ADS status symbols
+  (request id, busy/done/error/error code, etc.)
 * ``read_status()``: read predefined framework status struct
 
 Completion backends:
@@ -269,19 +272,24 @@ Typical PLC status struct shape:
        def m_xStartStepChain(
            self,
            udiRequestId: pyads.PLCTYPE_UDINT,
-       ) -> pyads.PLCTYPE_BOOL:
+       ) -> pyads.StepChainOp:
            ...
 
    async def main() -> None:
        async with pyads.AsyncConnection("127.0.0.1.1.1", pyads.PORT_TC3PLC1) as plc:
            rpc = plc.get_async_object(FB_TestRemoteStepChainMethodCall)
-           op = rpc.m_xStartStepChain()  # udiRequestId auto-generated when omitted
+           status_root = rpc.status_symbol()
+           op: pyads.StepChainOp = rpc.m_xStartStepChain()  # udiRequestId auto-generated when omitted
 
            accepted = await op.accepted
            if not accepted:
                raise RuntimeError("Stepchain start rejected by PLC.")
 
-           await op  # same as: await op.done
+           completion_snapshot = await op  # same as: await op.done
+           print(
+               "Completed request",
+               completion_snapshot[f"{status_root}.udiRequestId"],
+           )
            status = await rpc.read_status()
            print(status["udiStep"], status["sStepName"])
 
@@ -308,7 +316,7 @@ in ``ads_stepchain_path(...)``:
        timeout_s=30,
    )
    class FB_CustomStepChain:
-       def m_xStart(self, udiReqId: pyads.PLCTYPE_UDINT) -> pyads.PLCTYPE_BOOL:
+       def m_xStart(self, udiReqId: pyads.PLCTYPE_UDINT) -> pyads.StepChainOp:
            ...
 
 The framework status reader is always available on stepchain proxies:

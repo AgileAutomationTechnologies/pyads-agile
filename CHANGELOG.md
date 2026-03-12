@@ -12,6 +12,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Removed
 
+## [0.3.1] - 2026-03-12
+
+### Added
+- `pyads.StepChainOp` alias so developers can annotate stepchain methods
+  without spelling `StepChainOperation[Any]` repeatedly.
+
+### Changed
+- `StepChainOperation` completion futures (both polling and notification
+  backends) now return the latest ADS status snapshot dictionary instead of the
+  RPC acceptance bool, exposing request/busy/done/error fields directly.
+- Stepchain examples, documentation, and async tests updated to assert the new
+  completion payload and to annotate interfaces with `StepChainOperation`
+  return types.
+
+### Removed
+
 ## [0.3.0] - 2026-03-12
 
 ### Added

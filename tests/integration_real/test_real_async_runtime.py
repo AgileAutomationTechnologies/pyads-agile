@@ -66,7 +66,7 @@ def _make_stepchain_interface(
         def m_xStartStepChain(
                 self,
                 udiRequestId: pyads.PLCTYPE_UDINT,
-        ) -> pyads.PLCTYPE_BOOL:
+        ) -> pyads.StepChainOperation[Any]:
             ...
 
     if method_name != "m_xStartStepChain":
@@ -271,6 +271,18 @@ def test_get_async_object_stepchain_interface_real() -> None:
         try:
             await conn.open()
             rpc_iface = conn.get_async_object(interface_cls)
+            status_root = rpc_iface.status_symbol()
+            request_symbol = f"{status_root}.{request_id_field}"
+            done_symbol = f"{status_root}.{done_field}"
+            error_symbol = f"{status_root}.{error_field}"
+            error_code_symbol = (
+                f"{status_root}.{error_code_field}" if error_code_field else None
+            )
+            busy_symbol = f"{status_root}.{busy_field}" if busy_field else None
+            step_symbol = f"{status_root}.{step_field}" if step_field else None
+            step_name_symbol = (
+                f"{status_root}.{step_name_field}" if step_name_field else None
+            )
             start_stepchain = getattr(rpc_iface, method_name)
             op = start_stepchain()
             assert isinstance(op, pyads.StepChainOperation)
@@ -284,7 +296,19 @@ def test_get_async_object_stepchain_interface_real() -> None:
                     "Timed out waiting for stepchain completion. "
                     "Adjust stepchain status fields/timeout in real_runtime.toml."
                 )
-            assert done_result is not None
+            assert isinstance(done_result, dict)
+            assert request_symbol in done_result
+            assert done_symbol in done_result and bool(done_result[done_symbol])
+            assert error_symbol in done_result and not bool(done_result[error_symbol])
+            if busy_symbol:
+                assert busy_symbol in done_result
+            if step_symbol:
+                assert step_symbol in done_result
+            if step_name_symbol:
+                assert step_name_symbol in done_result
+            if error_code_symbol:
+                assert error_code_symbol in done_result
+            assert int(done_result[request_symbol]) == int(op.request_id)
 
             status = await rpc_iface.read_status()
             assert isinstance(status, dict)
@@ -298,6 +322,79 @@ def test_get_async_object_stepchain_interface_real() -> None:
             for field in expected_fields:
                 assert field in status
             assert int(status[request_id_field]) == int(op.request_id)
+        finally:
+            await conn.aclose()
+
+    asyncio.run(_scenario())
+
+
+def test_get_async_object_stepchain_interface_real_readable_usage() -> None:
+    """Mimic the README-style stepchain snippet in an end-to-end scenario."""
+
+    object_name = _required_stepchain_object()
+    method_name = _stepchain_method()
+    status_symbol = rt._cfg_str("test_stepchain_status_symbol") or None
+    status_field = rt._cfg_str("test_stepchain_status_field", "stStepStatus")
+    request_id_field = rt._cfg_str("test_stepchain_request_id_field", "udiRequestId")
+    request_id_arg = rt._cfg_str("test_stepchain_request_id_arg", "udiRequestId")
+    busy_field = rt._cfg_str("test_stepchain_busy_field", "xBusy") or None
+    done_field = rt._cfg_str("test_stepchain_done_field", "xDone")
+    done_value = _cfg_bool_or_int("test_stepchain_done_value", True)
+    error_field = rt._cfg_str("test_stepchain_error_field", "xError")
+    error_value = _cfg_bool_or_int("test_stepchain_error_value", True)
+    error_code_field = rt._cfg_str("test_stepchain_error_code_field", "diErrorCode")
+    step_field = rt._cfg_str("test_stepchain_step_field", "udiStep") or None
+    step_name_field = rt._cfg_str("test_stepchain_step_name_field", "sStepName") or None
+    step_name_length = rt._cfg_int("test_stepchain_step_name_length", 80)
+    completion = rt._cfg_str("test_stepchain_completion", "poll")
+    poll_interval = float(rt._cfg_int("test_stepchain_poll_interval_ms", 50)) / 1000.0
+    timeout_s = float(rt._cfg_int("test_stepchain_timeout_s", 15))
+
+    @pyads.ads_stepchain_path(object_name)
+    class FB_TestRemoteStepChainMethodCall:
+        def m_xStartStepChain(
+            self,
+            udiRequestId: pyads.PLCTYPE_UDINT,
+        ) -> pyads.StepChainOperation[pyads.PLCTYPE_BOOL]:
+            ...
+
+    async def _scenario() -> None:
+        conn = _new_async_conn()
+        try:
+            await conn.open()
+            rpc_iface = conn.get_async_object(FB_TestRemoteStepChainMethodCall)
+            status_root = rpc_iface.status_symbol()
+            operation = rpc_iface.m_xStartStepChain()
+            
+            accepted = await operation.accepted
+            if isinstance(accepted, bool) and not accepted:
+                pytest.skip("Stepchain start method was rejected by PLC (busy or unavailable).")
+
+            try:
+                completion = await operation
+            except TimeoutError:
+                pytest.skip(
+                    "Timed out waiting for stepchain completion. "
+                    "Adjust stepchain status fields/timeout in real_runtime.toml."
+                )
+            assert isinstance(completion, dict)
+            assert completion[f"{status_root}.{done_field}"]
+            assert not completion[f"{status_root}.{error_field}"]
+            assert int(completion[f"{status_root}.{request_id_field}"]) == int(operation.request_id)
+
+            status = await rpc_iface.read_status()
+            assert isinstance(status, dict)
+            assert request_id_field in status
+            assert done_field in status
+            assert error_field in status
+            assert error_code_field in status
+            assert int(status[request_id_field]) == int(operation.request_id)
+            if busy_field:
+                assert busy_field in status
+            if step_field:
+                assert step_field in status
+            if step_name_field:
+                assert step_name_field in status
         finally:
             await conn.aclose()
 

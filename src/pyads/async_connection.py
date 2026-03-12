@@ -277,7 +277,7 @@ class AsyncStepChainRpcObject:
         while True:
             values = await self._connection.sum_read(symbols)
             if self._is_completed(values, method_name, request_id):
-                return accepted_value
+                return values
 
             if timeout_deadline is not None and monotonic() >= timeout_deadline:
                 raise TimeoutError(
@@ -453,7 +453,7 @@ class AsyncNotifyStepChainRpcObject(AsyncStepChainRpcObject):
             # Immediate check in case completion happened before first callback dispatch.
             values = await self._connection.sum_read(symbols)
             if self._is_completed(values, method_name, request_id):
-                return accepted_value
+                return values
 
             timeout_deadline = (
                 monotonic() + self._cfg.timeout_s if self._cfg.timeout_s is not None else None
