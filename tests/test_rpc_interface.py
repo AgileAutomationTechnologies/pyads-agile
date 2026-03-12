@@ -90,7 +90,7 @@ def test_get_object_rejects_class_without_ads_path():
 def test_ads_stepchain_path_adds_stepchain_metadata():
     @pyads.ads_stepchain_path("GVL.fbStepChain")
     class FB_StepChain:
-        def m_Start(self, udiRequestId: pyads.PLCTYPE_UDINT) -> pyads.StepChainOperation[Any]:
+        def m_Start(self, udiRequestId: pyads.PLCTYPE_UDINT) -> pyads.PLCTYPE_BOOL:
             ...
 
     definition = resolve_rpc_interface_definition(FB_StepChain)
