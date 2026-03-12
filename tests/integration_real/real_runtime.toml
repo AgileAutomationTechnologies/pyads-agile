@@ -34,3 +34,40 @@ test_rpc_expected_result = "10"
 test_rpc_write_type = ""
 test_rpc_write_value = ""
 test_rpc_write_bytes_hex = ""
+
+# Optional stepchain async RPC integration test.
+# When test_stepchain_object is empty, stepchain async test is skipped.
+test_stepchain_object = "GVL.fbStepChain"
+test_stepchain_method = "m_xStartStepChain"
+
+# Status location:
+# - Either set test_stepchain_status_symbol to an absolute symbol path, e.g.
+#   "GVL.fbTestRemoteStepChainMethodCall.stStepStatus"
+# - or leave it empty and status root will be "<test_stepchain_object>.<test_stepchain_status_field>".
+test_stepchain_status_symbol = ""
+test_stepchain_status_field = "stStepStatus"
+
+# Status field names inside the status struct:
+test_stepchain_request_id_field = "udiRequestId"
+test_stepchain_done_field = "xDone"
+test_stepchain_error_field = "xError"
+test_stepchain_error_code_field = "diErrorCode"
+test_stepchain_busy_field = "xBusy"
+test_stepchain_step_field = "udiStep"
+test_stepchain_step_name_field = "sStepName"
+test_stepchain_step_name_length = 80
+
+# RPC request id argument name:
+test_stepchain_request_id_arg = "udiRequestId"
+
+# done/error comparators; supports bool-like strings (true/false/1/0)
+# and integer values (for enum-style state fields).
+test_stepchain_done_value = "true"
+test_stepchain_error_value = "true"
+
+# Polling + timeout settings for async wait:
+# Completion backend: poll | notify
+test_stepchain_completion = "poll"
+# Used for poll mode only:
+test_stepchain_poll_interval_ms = 50
+test_stepchain_timeout_s = 15

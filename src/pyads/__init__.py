@@ -24,7 +24,8 @@ from .ads import (
 )
 
 from .connection import Connection
-from .rpc_interface import ads_path
+from .async_connection import AsyncConnection, AsyncRpcObject, StepChainOperation
+from .rpc_interface import ads_path, ads_async_path, ads_stepchain_path
 
 from .pyads_ex import ADSError
 

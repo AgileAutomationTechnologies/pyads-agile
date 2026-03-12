@@ -5,6 +5,7 @@ Documentation
    :maxdepth: 2
    :caption: Contents:
 
+   features
    routing
    connection
    symbols

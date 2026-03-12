@@ -109,6 +109,132 @@ Beyond compatibility, this fork currently focuses on improved RPC ergonomics:
   )
   ```
 
+- **Serialized async ADS runtime.** `AsyncConnection` executes all ADS calls on
+  a dedicated worker thread per connection (in-order, race-safe on connection
+  state), and exposes awaitable helpers and submit-style futures:
+
+  ```python
+  import asyncio
+  import pyads
+
+  async def main() -> None:
+      async with pyads.AsyncConnection("127.0.0.1.1.1", pyads.PORT_TC3PLC1) as plc:
+          fut = plc.submit_sum_read(["GVL.int_val", "GVL.bool_val"])
+          # ... do other work
+          values = await fut
+
+          await plc.sum_write({"GVL.int_val": int(values["GVL.int_val"]) + 1})
+
+  asyncio.run(main())
+  ```
+
+- **Async wrappers for Stefan's synchronous Connection API.**
+  `AsyncConnection` now mirrors the core synchronous read/write surface while
+  keeping single-threaded serialized execution under the hood. For most methods
+  you get both:
+  - `submit_*` returning `asyncio.Future`
+  - `async` method variant that awaits the same operation
+
+  Covered wrappers include:
+  - `read`, `write`, `read_write`
+  - `read_by_name`, `write_by_name`
+  - `read_structure_by_name`, `write_structure_by_name`
+  - `read_state`, `read_device_info`, `write_control`
+  - `get_local_address`, `get_handle`, `release_handle`, `set_timeout`
+  - `sum_read` / `sum_write` (`submit_sum_read` / `submit_sum_write`)
+
+  ```python
+  import asyncio
+  import pyads
+
+  async def main() -> None:
+      async with pyads.AsyncConnection("127.0.0.1.1.1", pyads.PORT_TC3PLC1) as plc:
+          # Await-style
+          value = await plc.read_by_name("GVL.int_val", pyads.PLCTYPE_INT)
+          await plc.write_by_name("GVL.int_val", value + 1, pyads.PLCTYPE_INT)
+
+          # Submit-style
+          fut = plc.submit_read_state()
+          state = await fut
+          print(state)
+
+  asyncio.run(main())
+  ```
+
+- **Async typed RPC objects.** Use `@pyads.ads_async_path(...)` with
+  `AsyncConnection.get_async_object(...)` for type-safe async RPC interfaces.
+  Method calls return `asyncio.Future` objects:
+
+  ```python
+  @pyads.ads_async_path("GVL.fbTestRemoteMethodCall")
+  class FB_TestRemoteMethodCall:
+      def m_iSum(
+          self,
+          a: pyads.PLCTYPE_INT,
+          b: pyads.PLCTYPE_INT,
+      ) -> asyncio.Future[pyads.PLCTYPE_INT]:
+          ...
+
+  async def main(plc: pyads.AsyncConnection) -> None:
+      rpc = plc.get_async_object(FB_TestRemoteMethodCall)
+      future = rpc.m_iSum(5, 5)
+      result = await future
+      print(result)
+  ```
+
+- **Native stepchain async RPC interfaces.** Use
+  `@pyads.ads_stepchain_path(...)` to tell the async proxy that this is a
+  long-running state-machine call. Calls return a `StepChainOperation`
+  containing:
+  - `accepted`: RPC-return phase
+  - `done`: completion phase based on PLC status fields
+  - `await op`: same as `await op.done`
+
+  ```python
+  @pyads.ads_stepchain_path(
+      "GVL.fbTestRemoteStepChainMethodCall",
+      # Optional defaults shown explicitly:
+      completion="poll",  # or "notify"
+      status_field="stStepStatus",
+      request_id_field="udiRequestId",
+      request_id_arg="udiRequestId",
+      busy_field="xBusy",
+      done_field="xDone",
+      error_field="xError",
+      error_code_field="diErrorCode",
+  )
+  class FB_TestRemoteStepChainMethodCall:
+      def m_xStartStepChain(
+          self,
+          udiRequestId: pyads.PLCTYPE_UDINT,
+      ) -> pyads.PLCTYPE_BOOL:
+          ...
+
+  async def run_stepchain(plc: pyads.AsyncConnection) -> None:
+      rpc = plc.get_async_object(FB_TestRemoteStepChainMethodCall)
+
+      # udiRequestId is auto-generated if omitted.
+      op = rpc.m_xStartStepChain()
+
+      accepted = await op.accepted
+      if not accepted:
+          raise RuntimeError("Stepchain start rejected by PLC.")
+
+      # Wait until status reports completion or error.
+      await op
+
+      # Built-in framework status read (predefined structure)
+      status = await rpc.read_status()
+      print(status["udiStep"], status["sStepName"])
+  ```
+
+  Completion backend options:
+  - `completion="poll"`: periodic `sum_read` checks (`poll_interval`/`timeout_s`)
+  - `completion="notify"`: ADS notifications trigger status reads in asyncio
+
+  Built-in predefined stepchain status fields:
+  - `udiRequestId`, `xBusy`, `xDone`, `xError`, `diErrorCode`, `udiStep`, `sStepName`
+
 ## Features
 
 - connect to remote TwinCAT devices
@@ -117,6 +243,13 @@ Beyond compatibility, this fork currently focuses on improved RPC ergonomics:
 - read and write values by name or by address
 - read and write DUTs (structures)
 - notification callbacks
+- typed RPC interfaces via `@pyads.ads_path(...)`
+- async typed RPC interfaces via `@pyads.ads_async_path(...)`
+- serialized asyncio runtime via `pyads.AsyncConnection`
+- async wrappers for core sync ADS methods (`submit_*` + awaitable variants)
+- async typed RPC proxies via `get_async_object(...)`
+- native stepchain async RPC flow via `@pyads.ads_stepchain_path(...)`
+- stepchain completion backends: polling (`poll`) and notification-driven (`notify`)
 
 ## Basic usage
 

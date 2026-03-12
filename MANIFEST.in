@@ -5,6 +5,8 @@
 
 graft adslib
 include ACKNOWLEDGMENTS.md
+include src/pyads/py.typed
+global-include *.pyi
 global-exclude *.a *.o *.obj *.bin *.so
 prune obj
 prune tests

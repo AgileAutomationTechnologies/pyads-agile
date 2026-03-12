@@ -62,8 +62,8 @@ package-dir = { "" = "src" }
 include-package-data = true
 # ^ needed for MANIFEST.in
 
-#[tool.setuptools.package-data]
-# Package data (adslib/) is handled by MANIFEST.in instead
+[tool.setuptools.package-data]
+pyads = ["py.typed", "*.pyi"]
 
 [tool.setuptools.exclude-package-data]
 pyads = ["adslib/**"]
