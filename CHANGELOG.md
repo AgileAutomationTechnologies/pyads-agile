@@ -12,6 +12,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Removed
 
+## [0.3.0] - 2026-03-12
+
+### Added
+- `AsyncConnection` with serialized worker-thread execution for race-safe asyncio usage.
+- Async wrappers for core sync APIs (`submit_*` + awaitable methods), including:
+  `read/write/read_write`, `read_by_name/write_by_name`,
+  `read_structure_by_name/write_structure_by_name`, `sum_read/sum_write`,
+  `read_state/read_device_info/write_control`, `get_local_address`,
+  `get_handle/release_handle`, and `set_timeout`.
+- Async RPC proxies via `AsyncConnection.get_async_object(...)`.
+- `@pyads.ads_async_path(...)` for type-safe async RPC interface declarations.
+- Stepchain async RPC framework via `@pyads.ads_stepchain_path(...)` and
+  `StepChainOperation` (`accepted`, `done`, `await op`).
+- Stepchain completion backends:
+  - polling (`completion="poll"`)
+  - ADS-notification driven (`completion="notify"`)
+- Built-in stepchain status helpers on async stepchain proxies:
+  `status_symbol()`, `get_status_structure_def()`, `read_status()`.
+- Auto-generated stepchain request IDs when omitted.
+- Real/fake integration test coverage for async runtime, async RPC, and stepchain flows.
+- Typing distribution files (`py.typed`, `constants.pyi`) included in package artifacts.
+
+### Changed
+- Typed RPC metadata resolution now supports async return annotations
+  (`Future[T]` / `Awaitable[T]`) by inferring PLC return type from inner `T`.
+- `Connection.get_object(...)` now rejects interfaces decorated with
+  `@ads_async_path(...)` and guides callers to `AsyncConnection.get_async_object(...)`.
+- README and Sphinx docs updated for async runtime, async RPC, stepchain behavior,
+  and new async decorator usage.
+
+### Removed
+
 ## [0.2.0] - 2026-03-12
 
 ### Added
