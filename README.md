@@ -78,6 +78,26 @@ Beyond compatibility, this fork currently focuses on improved RPC ergonomics:
   result = rpc.m_iSum(5, 5)
   ```
 
+- **Typed RPC interfaces for IntelliSense.** Decorate a Python class with
+  `@pyads.ads_path("GVL.fbTestRemoteMethodCall")`, annotate method arguments and
+  return types with TwinCAT PLC types, and pass the class into
+  `Connection.get_object`. The returned proxy is typed as your class so IDEs can
+  offer completions:
+
+  ```python
+  @pyads.ads_path("GVL.fbTestRemoteMethodCall")
+  class FB_TestRemoteMethodCall:
+      def m_iSum(
+          self,
+          a: pyads.PLCTYPE_INT,
+          b: pyads.PLCTYPE_INT,
+      ) -> pyads.PLCTYPE_INT:
+          ...
+
+  rpc = plc.get_object(FB_TestRemoteMethodCall)
+  result = rpc.m_iSum(5, 5)
+  ```
+
   You can still use low-level direct calls when needed:
 
   ```python

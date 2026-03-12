@@ -7,6 +7,7 @@
 
 """
 from __future__ import annotations
+import inspect
 import struct
 from ctypes import (
     memmove,
@@ -19,7 +20,7 @@ from ctypes import (
 )
 from datetime import datetime
 from functools import partial
-from typing import Optional, Union, Tuple, Any, Type, Callable, Dict, List, Sequence, cast
+from typing import Optional, Union, Tuple, Any, Type, Callable, Dict, List, Sequence, cast, TypeVar, overload
 
 # noinspection PyUnresolvedReferences
 from .constants import (
@@ -99,6 +100,9 @@ from .ads import (
 )
 from .symbol import AdsSymbol
 from .utils import decode_ads
+from .rpc_interface import resolve_rpc_interface_definition
+
+RpcInterfaceT = TypeVar("RpcInterfaceT")
 
 
 class RpcObject:
@@ -774,6 +778,7 @@ class Connection(object):
                 symbols.append(symbol)
         return symbols
 
+    @overload
     def get_object(
             self,
             object_name: str,
@@ -783,8 +788,31 @@ class Connection(object):
             method_parameters: Optional[
                 Dict[str, Sequence[Type["PLCDataType"]]]
             ] = None,
-    ) -> RpcObject:
-        """Create a PLC object proxy for native RPC method calls.
+    ) -> RpcObject: ...
+
+    @overload
+    def get_object(
+            self,
+            object_name: Type[RpcInterfaceT],
+            method_separator: str = "#",
+            method_prefixes: Tuple[str, ...] = ("", "m_"),
+            method_return_types: Optional[Dict[str, Type["PLCDataType"]]] = None,
+            method_parameters: Optional[
+                Dict[str, Sequence[Type["PLCDataType"]]]
+            ] = None,
+    ) -> RpcInterfaceT: ...
+
+    def get_object(
+            self,
+            object_name: Union[str, Type[RpcInterfaceT]],
+            method_separator: str = "#",
+            method_prefixes: Tuple[str, ...] = ("", "m_"),
+            method_return_types: Optional[Dict[str, Type["PLCDataType"]]] = None,
+            method_parameters: Optional[
+                Dict[str, Sequence[Type["PLCDataType"]]]
+            ] = None,
+    ) -> Union[RpcObject, RpcInterfaceT]:
+        """Create a PLC object proxy for native RPC method calls or typed interfaces.
 
         Example:
             rpc = plc.get_object(
@@ -797,14 +825,53 @@ class Connection(object):
         Method names are resolved in order using ``method_prefixes``.
         The default supports both ``doCalc`` and ``m_doCalc`` style RPC names.
         """
-        return RpcObject(
+        interface_class: Optional[Type[RpcInterfaceT]] = (
+            object_name if inspect.isclass(object_name) else None
+        )
+        inferred_returns: Optional[Dict[str, Type["PLCDataType"]]] = None
+        inferred_parameters: Optional[Dict[str, Tuple[Type["PLCDataType"], ...]]] = None
+
+        if isinstance(object_name, str):
+            resolved_object_name = object_name
+        elif interface_class is not None:
+            interface_definition = resolve_rpc_interface_definition(interface_class)
+            resolved_object_name = interface_definition.object_name
+            if interface_definition.method_return_types:
+                inferred_returns = dict(interface_definition.method_return_types)
+            if interface_definition.method_parameters:
+                inferred_parameters = dict(interface_definition.method_parameters)
+        else:
+            raise TypeError("object_name must be a string or an ads_path-decorated class.")
+
+        final_return_types: Optional[Dict[str, Type["PLCDataType"]]] = None
+        if inferred_returns:
+            final_return_types = inferred_returns
+        if method_return_types:
+            final_return_types = {**(final_return_types or {}), **method_return_types}
+
+        normalized_parameters: Optional[Dict[str, Tuple[Type["PLCDataType"], ...]]] = None
+        if method_parameters:
+            normalized_parameters = {
+                name: tuple(values)
+                for name, values in method_parameters.items()
+            }
+        if inferred_parameters:
+            normalized_parameters = {
+                **(inferred_parameters or {}),
+                **(normalized_parameters or {}),
+            }
+
+        rpc_object = RpcObject(
             connection=self,
-            object_name=object_name,
+            object_name=resolved_object_name,
             method_separator=method_separator,
             method_prefixes=method_prefixes,
-            method_return_types=method_return_types,
-            method_parameters=method_parameters,
+            method_return_types=final_return_types,
+            method_parameters=normalized_parameters,
         )
+        if interface_class is not None:
+            return cast(RpcInterfaceT, rpc_object)
+        return rpc_object
 
     def call_rpc_method(
             self,

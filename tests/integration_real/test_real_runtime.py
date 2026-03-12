@@ -459,6 +459,32 @@ def test_get_object_rpc_multi_param_real(plc: pyads.Connection) -> None:
     assert int(result) == 10
 
 
+def test_get_object_rpc_class_interface_real(plc: pyads.Connection) -> None:
+    object_name, _ = _required_rpc_target_parts()
+
+    @pyads.ads_path(object_name)
+    class FB_TestRemoteMethodCall:
+        def m_iSum(
+            self,
+            a: pyads.PLCTYPE_INT,
+            b: pyads.PLCTYPE_INT,
+        ) -> pyads.PLCTYPE_INT:
+            pass
+
+    rpc_iface = plc.get_object(FB_TestRemoteMethodCall)
+    try:
+        result = rpc_iface.m_iSum(5, 5)
+    except pyads.ADSError as exc:
+        if getattr(exc, "err_code", None) == 1808:
+            pytest.skip(
+                "RPC method m_iSum not found on configured object. "
+                "Adjust PLC code or real_runtime.test_rpc_method object."
+            )
+        raise
+
+    assert int(result) == 10
+
+
 def test_symbol_read_real(plc: pyads.Connection) -> None:
     symbol_name = _required_symbol_int()
     symbol = pyads.AdsSymbol(plc, symbol_name, symbol_type=pyads.PLCTYPE_INT)

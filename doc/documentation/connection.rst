@@ -78,6 +78,38 @@ Example:
    if __name__ == "__main__":
        main()
 
+Typed RPC interfaces via ``@ads_path``
+""""""""""""""""""""""""""""""""""""""
+
+Instead of configuring method signatures manually, decorate a Python class with
+:py:func:`pyads.ads_path` and annotate PLC argument/return types. Passing the
+class to :py:meth:`.Connection.get_object` yields a proxy typed as that class,
+which improves IntelliSense and reduces boilerplate.
+
+.. code:: python
+
+   import pyads
+
+   @pyads.ads_path("GVL.fbTestRemoteMethodCall")
+   class FB_TestRemoteMethodCall:
+       def m_iSum(
+           self,
+           a: pyads.PLCTYPE_INT,
+           b: pyads.PLCTYPE_INT,
+       ) -> pyads.PLCTYPE_INT:
+           ...
+
+       def m_iSimpleCall(self) -> pyads.PLCTYPE_INT:
+           ...
+
+   plc = pyads.Connection("127.0.0.1.1.1", pyads.PORT_TC3PLC1)
+   plc.open()
+   try:
+       rpc = plc.get_object(FB_TestRemoteMethodCall)
+       print(rpc.m_iSum(5, 10))
+   finally:
+       plc.close()
+
 Low-level RPC call by fully-qualified method name
 """""""""""""""""""""""""""""""""""""""""""""""""
 

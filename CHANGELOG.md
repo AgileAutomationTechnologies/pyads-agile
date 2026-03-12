@@ -12,6 +12,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Removed
 
+## [0.2.0] - 2026-03-12
+
+### Added
+- `@pyads.ads_path(...)` decorator plus class-based `Connection.get_object(MyRpcInterface)`
+  overload for IntelliSense-aware RPC stubs inferred from type hints.
+- Real-target integration test that exercises class-based RPC interfaces.
+
+### Changed
+- README and connection documentation updated with typed RPC interface examples.
+
+### Removed
+
 ## [0.1.1] - 2026-03-11
 
 ### Added

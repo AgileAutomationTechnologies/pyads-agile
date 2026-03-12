@@ -24,6 +24,7 @@ from .ads import (
 )
 
 from .connection import Connection
+from .rpc_interface import ads_path
 
 from .pyads_ex import ADSError
 
@@ -119,4 +120,4 @@ from .constants import (
 
 from .symbol import AdsSymbol
 
-__version__ = '0.1.1'
+__version__ = '0.2.0'
