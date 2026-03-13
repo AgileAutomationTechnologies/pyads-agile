@@ -103,6 +103,18 @@ Recommended semantics:
 * ``udiStep`` and ``sStepName``:
   Optional but strongly recommended for diagnostics and tests.
 
+Important note about ``read_status()``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``pyads-agile`` reads stepchain status fields individually for
+``await rpc.read_status()``. That means this helper does not depend on TwinCAT
+struct packing and works even when the PLC status struct uses the default
+layout.
+
+This is different from generic ``read_structure_by_name(...)`` usage in pyads,
+which still expects mixed-type PLC structs to be declared with
+``{attribute 'pack_mode' := '1'}``.
+
 TwinCAT example
 ^^^^^^^^^^^^^^^
 

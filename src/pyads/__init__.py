@@ -128,4 +128,4 @@ from .symbol import AdsSymbol
 # is not specialized.
 StepChainOp: TypeAlias = StepChainOperation[Any]
 
-__version__ = '0.3.2'
+__version__ = '0.3.3'

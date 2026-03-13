@@ -176,15 +176,20 @@ class AsyncStepChainRpcObject(AsyncRpcObject):
         return cast(StructureDef, tuple(structure_items))
 
     def submit_read_status(self) -> "asyncio.Future[Any]":
-        """Submit reading the stepchain status structure."""
-        return self._connection.submit_read_structure_by_name(
-            self.status_symbol(),
-            self.get_status_structure_def(),
-        )
+        """Submit reading stepchain status fields without relying on struct packing."""
+        return asyncio.create_task(self._read_status_fields())
 
     async def read_status(self) -> Any:
         """Read the stepchain status structure asynchronously."""
         return await self.submit_read_status()
+
+    async def _read_status_fields(self) -> Dict[str, Any]:
+        field_map = self._status_field_symbol_map()
+        values = await self._connection.sum_read(list(field_map.values()))
+        return {
+            field_name: values[symbol_name]
+            for field_name, symbol_name in field_map.items()
+        }
 
     def __getattr__(self, method_name: str) -> Callable[..., Any]:
         if method_name not in self._stepchain_methods:
@@ -293,6 +298,15 @@ class AsyncStepChainRpcObject(AsyncRpcObject):
             symbols.append(err_symbol)
         if err_code_symbol and err_code_symbol not in symbols:
             symbols.append(err_code_symbol)
+        status_root = self.status_symbol()
+        if self._cfg.step_field:
+            step_symbol = f"{status_root}.{self._cfg.step_field}"
+            if step_symbol not in symbols:
+                symbols.append(step_symbol)
+        if self._cfg.step_name_field:
+            step_name_symbol = f"{status_root}.{self._cfg.step_name_field}"
+            if step_name_symbol not in symbols:
+                symbols.append(step_name_symbol)
         return symbols
 
     def _is_completed(
@@ -340,6 +354,23 @@ class AsyncStepChainRpcObject(AsyncRpcObject):
             else None
         )
         return req_symbol, busy_symbol, done_symbol, err_symbol, err_code_symbol
+
+    def _status_field_symbol_map(self) -> Dict[str, str]:
+        status_root = self.status_symbol()
+        field_map: Dict[str, str] = {
+            self._cfg.request_id_field: f"{status_root}.{self._cfg.request_id_field}",
+            self._cfg.done_field: f"{status_root}.{self._cfg.done_field}",
+            self._cfg.error_field: f"{status_root}.{self._cfg.error_field}",
+        }
+        if self._cfg.busy_field:
+            field_map[self._cfg.busy_field] = f"{status_root}.{self._cfg.busy_field}"
+        if self._cfg.error_code_field:
+            field_map[self._cfg.error_code_field] = f"{status_root}.{self._cfg.error_code_field}"
+        if self._cfg.step_field:
+            field_map[self._cfg.step_field] = f"{status_root}.{self._cfg.step_field}"
+        if self._cfg.step_name_field:
+            field_map[self._cfg.step_name_field] = f"{status_root}.{self._cfg.step_name_field}"
+        return field_map
 
     @staticmethod
     def _coerce_int(value: Any) -> Optional[int]:

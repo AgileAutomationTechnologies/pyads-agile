@@ -487,28 +487,26 @@ def test_stepchain_status_helpers_are_predefined() -> None:
         try:
             captured: Dict[str, Any] = {}
 
-            def _fake_read_structure_by_name(
+            def _fake_read_list_by_name(
                     self: pyads.Connection,
-                    data_name: str,
-                    structure_def: Any,
-                    array_size: int = 1,
-                    structure_size: Any = None,
-                    handle: Any = None,
+                    data_names: List[str],
+                    cache_symbol_info: bool = True,
+                    ads_sub_commands: int = 500,
+                    structure_defs: Dict[str, Any] = None,
             ) -> Dict[str, Any]:
-                captured["data_name"] = data_name
-                captured["structure_def"] = structure_def
+                captured["data_names"] = list(data_names)
                 return {
-                    "udiRequestId": 12,
-                    "xBusy": False,
-                    "xDone": True,
-                    "xError": False,
-                    "diErrorCode": 0,
-                    "udiStep": 100,
-                    "sStepName": "Done",
+                    "GVL.fbStepChain.stStepStatus.udiRequestId": 12,
+                    "GVL.fbStepChain.stStepStatus.xBusy": False,
+                    "GVL.fbStepChain.stStepStatus.xDone": True,
+                    "GVL.fbStepChain.stStepStatus.xError": False,
+                    "GVL.fbStepChain.stStepStatus.diErrorCode": 0,
+                    "GVL.fbStepChain.stStepStatus.udiStep": 100,
+                    "GVL.fbStepChain.stStepStatus.sStepName": "Done",
                 }
 
-            conn.sync_connection.read_structure_by_name = types.MethodType(
-                _fake_read_structure_by_name, conn.sync_connection
+            conn.sync_connection.read_list_by_name = types.MethodType(
+                _fake_read_list_by_name, conn.sync_connection
             )
 
             rpc = conn.get_async_object(AsyncFBStepChain)
@@ -527,7 +525,7 @@ def test_stepchain_status_helpers_are_predefined() -> None:
 
             status = await rpc.read_status()
             assert status["sStepName"] == "Done"
-            assert captured["data_name"] == "GVL.fbStepChain.stStepStatus"
+            assert "GVL.fbStepChain.stStepStatus.udiRequestId" in captured["data_names"]
         finally:
             await conn.aclose()
 

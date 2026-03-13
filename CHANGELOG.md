@@ -12,6 +12,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Removed
 
+## [0.3.3] - 2026-03-13
+
+### Added
+
+### Changed
+- `StepChainRpcInterface.read_status()` now reads configured status fields
+  individually instead of decoding the raw PLC struct payload.
+- Stepchain completion snapshots now include optional diagnostic fields such as
+  `udiStep` and `sStepName` when configured.
+- Stepchain documentation now explains why `read_status()` is safe without
+  TwinCAT `pack_mode := '1'`, while generic structured reads still require it
+  for mixed-type structs.
+
+### Removed
+
 ## [0.3.2] - 2026-03-13
 
 ### Added
