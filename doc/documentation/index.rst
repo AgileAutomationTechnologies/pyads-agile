@@ -8,5 +8,6 @@ Documentation
    features
    routing
    connection
+   stepchain
    symbols
    testserver

@@ -12,6 +12,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Removed
 
+## [0.3.2] - 2026-03-13
+
+### Added
+- Method-level stepchain typing via `StepChainRpcInterface` and
+  `@pyads.stepchain_start`.
+- Readable real async integration tests covering ported async wrappers,
+  mixed async RPC interfaces, and stepchain abort behavior.
+- TwinCAT reference materials:
+  - importable PLC project archive (`.tpzip`)
+  - readable ST reference source
+  - dedicated stepchain documentation with TwinCAT design guidance
+
+### Changed
+- `AsyncConnection.get_async_object(...)` now supports mixed plain async RPC
+  methods and stepchain start methods on the same interface class.
+- Stepchain transport typing now derives from
+  `StepChainOperation[PLCTYPE_*]`, while helper methods are exposed through
+  `StepChainRpcInterface`.
+- Real integration examples and configuration were aligned with Hungarian-style
+  TwinCAT naming and explicit abort/error semantics.
+- Notification-based stepchain completion now returns the final status snapshot
+  consistently with polling mode.
+
+### Removed
+- Class-level `@pyads.ads_stepchain_path(...)` API in favor of
+  `@pyads.ads_async_path(...)` + `StepChainRpcInterface` +
+  `@pyads.stepchain_start`.
+
 ## [0.3.1] - 2026-03-12
 
 ### Added

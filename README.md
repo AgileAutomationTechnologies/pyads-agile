@@ -183,33 +183,26 @@ Beyond compatibility, this fork currently focuses on improved RPC ergonomics:
   ```
 
 - **Native stepchain async RPC interfaces.** Use
-  `@pyads.ads_stepchain_path(...)` to tell the async proxy that this is a
-  long-running state-machine call. Calls return a `StepChainOperation`
+  `@pyads.ads_async_path(...)` on the interface, inherit from
+  `pyads.StepChainRpcInterface`, and mark stepchain entry methods with
+  `@pyads.stepchain_start`. Calls return a `StepChainOperation`
   containing:
   - `accepted`: RPC-return phase
   - `done`: completion phase based on PLC status fields
   - `await op`: completion snapshot with the latest ADS status symbol values
-  Use the convenience alias `pyads.StepChainOp` when you don't need to
-  specialize the generic payload type.
+  The generic parameter on `StepChainOperation[...]` describes the ADS
+  transport return type for the accepted phase.
 
   ```python
-  @pyads.ads_stepchain_path(
-      "GVL.fbTestRemoteStepChainMethodCall",
-      # Optional defaults shown explicitly:
-      completion="poll",  # or "notify"
-      status_field="stStepStatus",
-      request_id_field="udiRequestId",
-      request_id_arg="udiRequestId",
-      busy_field="xBusy",
-      done_field="xDone",
-      error_field="xError",
-      error_code_field="diErrorCode",
-  )
-  class FB_TestRemoteStepChainMethodCall:
+  @pyads.ads_async_path("GVL.fbTestRemoteStepChainMethodCall")
+  class FB_TestRemoteStepChainMethodCall(pyads.StepChainRpcInterface):
+      __stepchain_completion__ = "poll"  # or "notify"
+
+      @pyads.stepchain_start
       def m_xStartStepChain(
           self,
           udiRequestId: pyads.PLCTYPE_UDINT,
-      ) -> pyads.StepChainOp:
+      ) -> pyads.StepChainOperation[pyads.PLCTYPE_BOOL]:
           ...
 
   async def run_stepchain(plc: pyads.AsyncConnection) -> None:
@@ -217,7 +210,7 @@ Beyond compatibility, this fork currently focuses on improved RPC ergonomics:
       status_root = rpc.status_symbol()
 
       # udiRequestId is auto-generated if omitted.
-      op: pyads.StepChainOp = rpc.m_xStartStepChain()
+      op = rpc.m_xStartStepChain()
 
       accepted = await op.accepted
       if not accepted:
@@ -240,6 +233,12 @@ Beyond compatibility, this fork currently focuses on improved RPC ergonomics:
   Built-in predefined stepchain status fields:
   - `udiRequestId`, `xBusy`, `xDone`, `xError`, `diErrorCode`, `udiStep`, `sStepName`
 
+  Repository references:
+  - TwinCAT PLC project archive: [`examples/twincat_reference/project/Test_PyAdsAgile.tpzip`](examples/twincat_reference/project/Test_PyAdsAgile.tpzip)
+  - TwinCAT reference source: [`examples/twincat_reference/pyads_agile_reference.st`](examples/twincat_reference/pyads_agile_reference.st)
+  - Real test PLC template: [`tests/integration_real/plc_symbols_template.st`](tests/integration_real/plc_symbols_template.st)
+  - Detailed stepchain guide: [`doc/documentation/stepchain.rst`](doc/documentation/stepchain.rst)
+
 ## Features
 
 - connect to remote TwinCAT devices
@@ -253,7 +252,7 @@ Beyond compatibility, this fork currently focuses on improved RPC ergonomics:
 - serialized asyncio runtime via `pyads.AsyncConnection`
 - async wrappers for core sync ADS methods (`submit_*` + awaitable variants)
 - async typed RPC proxies via `get_async_object(...)`
-- native stepchain async RPC flow via `@pyads.ads_stepchain_path(...)`
+- native stepchain async RPC flow via `StepChainRpcInterface` + `@pyads.stepchain_start`
 - stepchain completion backends: polling (`poll`) and notification-driven (`notify`)
 
 ## Basic usage

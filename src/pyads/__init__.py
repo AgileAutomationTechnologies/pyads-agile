@@ -27,7 +27,7 @@ from .ads import (
 
 from .connection import Connection
 from .async_connection import AsyncConnection, AsyncRpcObject, StepChainOperation
-from .rpc_interface import ads_path, ads_async_path, ads_stepchain_path
+from .rpc_interface import StepChainRpcInterface, ads_path, ads_async_path, stepchain_start
 
 from .pyads_ex import ADSError
 
@@ -124,7 +124,8 @@ from .constants import (
 from .symbol import AdsSymbol
 
 # Convenience alias so users can write ``pyads.StepChainOp`` instead of
-# ``pyads.StepChainOperation[Any]`` when the done payload is not specialized.
+# ``pyads.StepChainOperation[Any]`` when the accepted-phase transport type
+# is not specialized.
 StepChainOp: TypeAlias = StepChainOperation[Any]
 
-__version__ = '0.3.1'
+__version__ = '0.3.2'

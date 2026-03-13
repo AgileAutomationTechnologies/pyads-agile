@@ -215,24 +215,30 @@ Method calls return :py:class:`asyncio.Future`.
 
    asyncio.run(main())
 
-Stepchain async RPC via ``@ads_stepchain_path``
+Stepchain async RPC via ``StepChainRpcInterface``
 """""""""""""""""""""""""""""""""""""""""""""""
 
 For long-running PLC workflows (for example Schrittkette/state-machine style
-methods), use :py:func:`pyads.ads_stepchain_path`. The async proxy returns a
-:py:class:`pyads.StepChainOperation` (or :pydata:`pyads.StepChainOp` convenience
-alias) that tracks two phases:
+methods), use :py:func:`pyads.ads_async_path` together with
+:py:class:`pyads.StepChainRpcInterface` and mark stepchain entry methods with
+:py:func:`pyads.stepchain_start`. The async proxy returns a
+:py:class:`pyads.StepChainOperation` that tracks two phases:
 
 * ``accepted``: RPC method returned
 * ``done``: stepchain completion detected from status symbols
 * ``await op`` / ``await op.done``: snapshot dictionary of ADS status symbols
   (request id, busy/done/error/error code, etc.)
 * ``read_status()``: read predefined framework status struct
+* ``StepChainOperation[PLCTYPE_*]``: the generic parameter defines the ADS
+  transport return type of the accepted phase
 
 Completion backends:
 
 * ``completion="poll"`` (default): periodic ``sum_read`` polling
 * ``completion="notify"``: ADS notifications trigger status checks in asyncio
+
+For a longer guide covering TwinCAT PLC structure, abort semantics, and
+reference PLC code, see :doc:`stepchain`.
 
 The default status convention is:
 
@@ -264,22 +270,22 @@ Typical PLC status struct shape:
    import asyncio
    import pyads
 
-   @pyads.ads_stepchain_path(
-       "GVL.fbTestRemoteStepChainMethodCall",
-       completion="poll",  # or "notify"
-   )
-   class FB_TestRemoteStepChainMethodCall:
+   @pyads.ads_async_path("GVL.fbTestRemoteStepChainMethodCall")
+   class FB_TestRemoteStepChainMethodCall(pyads.StepChainRpcInterface):
+       __stepchain_completion__ = "poll"  # or "notify"
+
+       @pyads.stepchain_start
        def m_xStartStepChain(
            self,
            udiRequestId: pyads.PLCTYPE_UDINT,
-       ) -> pyads.StepChainOp:
+       ) -> pyads.StepChainOperation[pyads.PLCTYPE_BOOL]:
            ...
 
    async def main() -> None:
        async with pyads.AsyncConnection("127.0.0.1.1.1", pyads.PORT_TC3PLC1) as plc:
            rpc = plc.get_async_object(FB_TestRemoteStepChainMethodCall)
            status_root = rpc.status_symbol()
-           op: pyads.StepChainOp = rpc.m_xStartStepChain()  # udiRequestId auto-generated when omitted
+           op = rpc.m_xStartStepChain()  # udiRequestId auto-generated when omitted
 
            accepted = await op.accepted
            if not accepted:
@@ -296,27 +302,30 @@ Typical PLC status struct shape:
    asyncio.run(main())
 
 If your PLC status struct uses different field names or values, override them
-in ``ads_stepchain_path(...)``:
+on the ``StepChainRpcInterface`` subclass:
 
 .. code:: python
 
-   @pyads.ads_stepchain_path(
-       "GVL.fbTestRemoteStepChainMethodCall",
-       status_field="stExecution",
-       request_id_field="udiReqId",
-       request_id_arg="udiReqId",
-       busy_field="xBusy",
-       done_field="eState",
-       done_value=2,
-       error_field="eState",
-       error_value=3,
-       error_code_field="diErrCode",
-       completion="notify",
-       poll_interval=0.1,
-       timeout_s=30,
-   )
-   class FB_CustomStepChain:
-       def m_xStart(self, udiReqId: pyads.PLCTYPE_UDINT) -> pyads.StepChainOp:
+   @pyads.ads_async_path("GVL.fbTestRemoteStepChainMethodCall")
+   class FB_CustomStepChain(pyads.StepChainRpcInterface):
+       __stepchain_status_field__ = "stExecution"
+       __stepchain_request_id_field__ = "udiReqId"
+       __stepchain_request_id_arg__ = "udiReqId"
+       __stepchain_busy_field__ = "xBusy"
+       __stepchain_done_field__ = "eState"
+       __stepchain_done_value__ = 2
+       __stepchain_error_field__ = "eState"
+       __stepchain_error_value__ = 3
+       __stepchain_error_code_field__ = "diErrCode"
+       __stepchain_completion__ = "notify"
+       __stepchain_poll_interval__ = 0.1
+       __stepchain_timeout_s__ = 30
+
+       @pyads.stepchain_start
+       def m_xStart(
+           self,
+           udiReqId: pyads.PLCTYPE_UDINT,
+       ) -> pyads.StepChainOperation[pyads.PLCTYPE_BOOL]:
            ...
 
 The framework status reader is always available on stepchain proxies:

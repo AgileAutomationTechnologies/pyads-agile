@@ -840,6 +840,11 @@ class Connection(object):
                     f"{interface_class.__name__} is decorated with @ads_async_path('...') "
                     "and must be used with AsyncConnection.get_async_object()."
                 )
+            if interface_definition.stepchain_methods:
+                raise TypeError(
+                    f"{interface_class.__name__} declares @stepchain_start methods "
+                    "and must be used with AsyncConnection.get_async_object()."
+                )
             resolved_object_name = interface_definition.object_name
             if interface_definition.method_return_types:
                 inferred_returns = dict(interface_definition.method_return_types)

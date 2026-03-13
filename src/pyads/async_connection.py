@@ -14,7 +14,7 @@ import queue
 import threading
 from dataclasses import dataclass
 from time import monotonic
-from typing import Any, Callable, Dict, Generic, List, Optional, Sequence, Tuple, Type, TypeVar, Union, cast, overload
+from typing import Any, Callable, Dict, Generic, List, Optional, Sequence, Set, Tuple, Type, TypeVar, Union, cast, overload
 
 from .ads import StructureDef
 from .connection import Connection, RpcInterfaceT, RpcObject
@@ -32,7 +32,7 @@ from .structs import AdsVersion, AmsAddr, NotificationAttrib
 
 T = TypeVar("T")
 AsyncRpcInterfaceT = TypeVar("AsyncRpcInterfaceT")
-StepChainDoneT = TypeVar("StepChainDoneT")
+StepChainAcceptedT = TypeVar("StepChainAcceptedT")
 
 
 @dataclass(frozen=True)
@@ -50,7 +50,7 @@ class _ShutdownSignal:
     """Marker object to stop the worker thread."""
 
 
-class StepChainOperation(Generic[StepChainDoneT]):
+class StepChainOperation(Generic[StepChainAcceptedT]):
     """Handle for a stepchain-style async RPC call.
 
     ``accepted`` resolves when the underlying RPC method has returned.
@@ -61,8 +61,8 @@ class StepChainOperation(Generic[StepChainDoneT]):
     def __init__(
             self,
             request_id: int,
-            accepted: "asyncio.Future[Any]",
-            done: "asyncio.Future[StepChainDoneT]",
+            accepted: "asyncio.Future[StepChainAcceptedT]",
+            done: "asyncio.Future[Any]",
     ) -> None:
         self.request_id = request_id
         self.accepted = accepted
@@ -103,7 +103,7 @@ class AsyncRpcObject:
         return _invoke
 
 
-class AsyncStepChainRpcObject:
+class AsyncStepChainRpcObject(AsyncRpcObject):
     """Async RPC proxy with built-in stepchain completion tracking."""
 
     def __init__(
@@ -112,17 +112,14 @@ class AsyncStepChainRpcObject:
             rpc_object: RpcObject,
             object_name: str,
             method_argument_names: Dict[str, Tuple[str, ...]],
+            stepchain_methods: Set[str],
             stepchain_config: StepChainConfig,
     ) -> None:
-        self._connection = connection
-        self._rpc_object = rpc_object
+        super().__init__(connection, rpc_object)
         self._object_name = object_name
         self._method_argument_names = method_argument_names
+        self._stepchain_methods = set(stepchain_methods)
         self._cfg = stepchain_config
-
-    def set_return_type(self, method_name: str, plc_type: Type["PLCDataType"]) -> None:
-        """Configure or override the return type for a method."""
-        self._rpc_object.set_return_type(method_name, plc_type)
 
     def status_symbol(self) -> str:
         """Return the root PLC symbol that stores stepchain status."""
@@ -189,9 +186,9 @@ class AsyncStepChainRpcObject:
         """Read the stepchain status structure asynchronously."""
         return await self.submit_read_status()
 
-    def __getattr__(self, method_name: str) -> Callable[..., StepChainOperation[Any]]:
-        if method_name.startswith("_"):
-            raise AttributeError(method_name)
+    def __getattr__(self, method_name: str) -> Callable[..., Any]:
+        if method_name not in self._stepchain_methods:
+            return super().__getattr__(method_name)
 
         sync_method = getattr(self._rpc_object, method_name)
         arg_names = self._method_argument_names.get(method_name, tuple())
@@ -364,9 +361,9 @@ class AsyncStepChainRpcObject:
 class AsyncNotifyStepChainRpcObject(AsyncStepChainRpcObject):
     """Stepchain RPC proxy using ADS notifications to trigger status checks."""
 
-    def __getattr__(self, method_name: str) -> Callable[..., StepChainOperation[Any]]:
-        if method_name.startswith("_"):
-            raise AttributeError(method_name)
+    def __getattr__(self, method_name: str) -> Callable[..., Any]:
+        if method_name not in self._stepchain_methods:
+            return AsyncRpcObject.__getattr__(self, method_name)
 
         sync_method = getattr(self._rpc_object, method_name)
         arg_names = self._method_argument_names.get(method_name, tuple())
@@ -473,7 +470,7 @@ class AsyncNotifyStepChainRpcObject(AsyncStepChainRpcObject):
 
                 values = await self._connection.sum_read(symbols)
                 if self._is_completed(values, method_name, request_id):
-                    return accepted_value
+                    return values
         finally:
             try:
                 await self._connection._submit(self._connection._del_notifications, handles)
@@ -886,6 +883,7 @@ class AsyncConnection:
             object_name if inspect.isclass(object_name) else None
         )
         stepchain_cfg: Optional[StepChainConfig] = None
+        stepchain_methods: Set[str] = set()
         async_interface = False
         method_argument_names: Dict[str, Tuple[str, ...]] = {}
         inferred_returns: Optional[Dict[str, Type["PLCDataType"]]] = None
@@ -895,8 +893,8 @@ class AsyncConnection:
         if interface_class is not None:
             interface_definition = resolve_rpc_interface_definition(interface_class)
             async_interface = interface_definition.async_interface
-            if interface_definition.stepchain:
-                stepchain_cfg = interface_definition.stepchain_config
+            stepchain_cfg = interface_definition.stepchain_config
+            stepchain_methods = set(interface_definition.stepchain_methods)
             method_argument_names = dict(interface_definition.method_argument_names)
             resolved_object_name = interface_definition.object_name
             if interface_definition.method_return_types:
@@ -944,6 +942,7 @@ class AsyncConnection:
                     cast(RpcObject, sync_rpc),
                     resolved_object_name if resolved_object_name is not None else "",
                     method_argument_names,
+                    stepchain_methods,
                     stepchain_cfg,
                 )
             else:
@@ -952,6 +951,7 @@ class AsyncConnection:
                     cast(RpcObject, sync_rpc),
                     resolved_object_name if resolved_object_name is not None else "",
                     method_argument_names,
+                    stepchain_methods,
                     stepchain_cfg,
                 )
         else:

@@ -1,25 +1,15 @@
 (* 
-TwinCAT ST reference source used by the real integration tests.
+TwinCAT reference source for pyads-agile examples and real integration tests.
 
-This is intentionally close to the PLC code exercised by
-`tests/integration_real/test_real_async_runtime.py`.
-
-Conventions used here:
-- `st` for structs
-- `fb` for function blocks
-- `x` for BOOL
-- `i` for INT
-- `udi` for UDINT
-- `s` for STRING
-- `m_` for methods
-- `m_x` for methods returning BOOL
-
-To use this in a TwinCAT project:
-1. Create the DUTs below.
-2. Create the function blocks below.
-3. Add the global variables to `GVL`.
-4. Call `GVL.fbStepChain();` once per PLC cycle from `MAIN`.
-5. Keep `tests/integration_real/real_runtime.toml` aligned with the symbol names.
+Naming conventions:
+- st for structs
+- fb for function blocks
+- x for BOOL
+- i for INT
+- udi for UDINT
+- s for STRING
+- m_ for methods
+- m_x for methods returning BOOL
 *)
 
 TYPE ST_PyAdsTest :
@@ -58,10 +48,6 @@ END_VAR
 m_iSum := iA + iB;
 
 FUNCTION_BLOCK FB_TestStepChain
-VAR_INPUT
-END_VAR
-VAR_OUTPUT
-END_VAR
 VAR
     stStepStatus : ST_StepStatus;
 
@@ -88,7 +74,6 @@ IF NOT _xBusy THEN
 END_IF
 
 CASE _udiInternalStep OF
-
     10:
         stStepStatus.sStepName := 'Prepare';
         IF _tonPrepare.Q THEN
@@ -106,7 +91,6 @@ CASE _udiInternalStep OF
         IF _xSimulateError THEN
             _xBusy := FALSE;
             _udiInternalStep := 901;
-
             stStepStatus.xBusy := FALSE;
             stStepStatus.xDone := FALSE;
             stStepStatus.xError := TRUE;
@@ -125,7 +109,6 @@ CASE _udiInternalStep OF
         IF _tonFinalize.Q THEN
             _xBusy := FALSE;
             _udiInternalStep := 100;
-
             stStepStatus.xBusy := FALSE;
             stStepStatus.xDone := TRUE;
             stStepStatus.xError := FALSE;
@@ -134,8 +117,31 @@ CASE _udiInternalStep OF
             stStepStatus.sStepName := 'Done';
             RETURN;
         END_IF
-
 END_CASE
+
+{attribute 'TcRpcEnable'}
+METHOD m_xStartStepChain : BOOL
+VAR_INPUT
+    udiRequestId : UDINT;
+END_VAR
+IF _xBusy THEN
+    m_xStartStepChain := FALSE;
+    RETURN;
+END_IF
+
+_xBusy := TRUE;
+_udiInternalStep := 10;
+_xSimulateError := GVL.xStepChainForceError;
+
+stStepStatus.udiRequestId := udiRequestId;
+stStepStatus.xBusy := TRUE;
+stStepStatus.xDone := FALSE;
+stStepStatus.xError := FALSE;
+stStepStatus.diErrorCode := 0;
+stStepStatus.udiStep := _udiInternalStep;
+stStepStatus.sStepName := 'Prepare';
+
+m_xStartStepChain := TRUE;
 
 {attribute 'TcRpcEnable'}
 METHOD m_xAbortStepChain : BOOL
@@ -155,31 +161,6 @@ stStepStatus.udiStep := _udiInternalStep;
 stStepStatus.sStepName := 'Aborted';
 
 m_xAbortStepChain := TRUE;
-
-{attribute 'TcRpcEnable'}
-METHOD m_xStartStepChain : BOOL
-VAR_INPUT
-    udiRequestId : UDINT;
-END_VAR
-
-IF _xBusy THEN
-    m_xStartStepChain := FALSE;
-    RETURN;
-END_IF
-
-_xBusy := TRUE;
-_udiInternalStep := 10;
-_xSimulateError := GVL.xStepChainForceError;
-
-stStepStatus.udiRequestId := udiRequestId;
-stStepStatus.xBusy := TRUE;
-stStepStatus.xDone := FALSE;
-stStepStatus.xError := FALSE;
-stStepStatus.diErrorCode := 0;
-stStepStatus.udiStep := _udiInternalStep;
-stStepStatus.sStepName := 'Prepare';
-
-m_xStartStepChain := TRUE;
 
 {attribute 'qualified_only'}
 VAR_GLOBAL

@@ -236,9 +236,13 @@ def test_async_wrappers_for_sync_methods() -> None:
 
 
 def test_get_async_stepchain_object_returns_operation_and_completes() -> None:
-    @pyads.ads_stepchain_path("GVL.fbStepChain")
-    class AsyncFBStepChain:
-        def m_Start(self, udiRequestId: pyads.PLCTYPE_UDINT) -> pyads.StepChainOperation[Any]:
+    @pyads.ads_async_path("GVL.fbStepChain")
+    class AsyncFBStepChain(pyads.StepChainRpcInterface):
+        @pyads.stepchain_start
+        def m_Start(
+                self,
+                udiRequestId: pyads.PLCTYPE_UDINT,
+        ) -> pyads.StepChainOperation[pyads.PLCTYPE_BOOL]:
             ...
 
     async def _scenario() -> None:
@@ -306,9 +310,13 @@ def test_get_async_stepchain_object_returns_operation_and_completes() -> None:
 
 
 def test_get_async_stepchain_object_raises_on_error_status() -> None:
-    @pyads.ads_stepchain_path("GVL.fbStepChain")
-    class AsyncFBStepChain:
-        def m_Start(self, udiRequestId: pyads.PLCTYPE_UDINT) -> pyads.StepChainOperation[Any]:
+    @pyads.ads_async_path("GVL.fbStepChain")
+    class AsyncFBStepChain(pyads.StepChainRpcInterface):
+        @pyads.stepchain_start
+        def m_Start(
+                self,
+                udiRequestId: pyads.PLCTYPE_UDINT,
+        ) -> pyads.StepChainOperation[pyads.PLCTYPE_BOOL]:
             ...
 
     async def _scenario() -> None:
@@ -364,9 +372,15 @@ def test_get_async_stepchain_object_raises_on_error_status() -> None:
 
 
 def test_get_async_stepchain_object_notify_completion() -> None:
-    @pyads.ads_stepchain_path("GVL.fbStepChain", completion="notify")
-    class AsyncFBStepChainNotify:
-        def m_Start(self, udiRequestId: pyads.PLCTYPE_UDINT) -> pyads.StepChainOperation[Any]:
+    @pyads.ads_async_path("GVL.fbStepChain")
+    class AsyncFBStepChainNotify(pyads.StepChainRpcInterface):
+        __stepchain_completion__ = "notify"
+
+        @pyads.stepchain_start
+        def m_Start(
+                self,
+                udiRequestId: pyads.PLCTYPE_UDINT,
+        ) -> pyads.StepChainOperation[pyads.PLCTYPE_BOOL]:
             ...
 
     async def _scenario() -> None:
@@ -459,9 +473,13 @@ def test_get_async_stepchain_object_notify_completion() -> None:
 
 
 def test_stepchain_status_helpers_are_predefined() -> None:
-    @pyads.ads_stepchain_path("GVL.fbStepChain")
-    class AsyncFBStepChain:
-        def m_xStartStepChain(self, udiRequestId: pyads.PLCTYPE_UDINT) -> pyads.StepChainOperation[Any]:
+    @pyads.ads_async_path("GVL.fbStepChain")
+    class AsyncFBStepChain(pyads.StepChainRpcInterface):
+        @pyads.stepchain_start
+        def m_xStartStepChain(
+                self,
+                udiRequestId: pyads.PLCTYPE_UDINT,
+        ) -> pyads.StepChainOperation[pyads.PLCTYPE_BOOL]:
             ...
 
     async def _scenario() -> None:
@@ -510,6 +528,82 @@ def test_stepchain_status_helpers_are_predefined() -> None:
             status = await rpc.read_status()
             assert status["sStepName"] == "Done"
             assert captured["data_name"] == "GVL.fbStepChain.stStepStatus"
+        finally:
+            await conn.aclose()
+
+    asyncio.run(_scenario())
+
+
+def test_get_async_object_supports_mixed_plain_and_stepchain_methods() -> None:
+    @pyads.ads_async_path("GVL.fbStepChain")
+    class AsyncFBStepChain(pyads.StepChainRpcInterface):
+        @pyads.stepchain_start
+        def m_Start(
+                self,
+                udiRequestId: pyads.PLCTYPE_UDINT,
+        ) -> pyads.StepChainOperation[pyads.PLCTYPE_BOOL]:
+            ...
+
+        def m_iPlain(self, value: pyads.PLCTYPE_INT) -> asyncio.Future[pyads.PLCTYPE_INT]:
+            ...
+
+    async def _scenario() -> None:
+        conn = pyads.AsyncConnection("1.2.3.4.5.6", pyads.PORT_TC3PLC1)
+        try:
+            calls: List[Any] = []
+
+            def _fake_call_rpc_method(
+                    self: pyads.Connection,
+                    method_name: str,
+                    return_type: Any = None,
+                    write_value: Any = None,
+                    write_type: Any = None,
+            ) -> Any:
+                calls.append((method_name, return_type, write_value, write_type))
+                if method_name.endswith("#m_iPlain"):
+                    return 42
+                return True
+
+            def _fake_read_list_by_name(
+                    self: pyads.Connection,
+                    data_names: List[str],
+                    cache_symbol_info: bool = True,
+                    ads_sub_commands: int = 500,
+                    structure_defs: Dict[str, Any] = None,
+            ) -> Dict[str, Any]:
+                values: Dict[str, Any] = {}
+                for name in data_names:
+                    if name.endswith(".udiRequestId"):
+                        values[name] = 1
+                    elif name.endswith(".xBusy"):
+                        values[name] = False
+                    elif name.endswith(".xDone"):
+                        values[name] = True
+                    elif name.endswith(".xError"):
+                        values[name] = False
+                    elif name.endswith(".diErrorCode"):
+                        values[name] = 0
+                    else:
+                        values[name] = 0
+                return values
+
+            conn.sync_connection.call_rpc_method = types.MethodType(
+                _fake_call_rpc_method, conn.sync_connection
+            )
+            conn.sync_connection.read_list_by_name = types.MethodType(
+                _fake_read_list_by_name, conn.sync_connection
+            )
+
+            rpc = conn.get_async_object(AsyncFBStepChain)
+            plain = rpc.m_iPlain(10)
+            assert isinstance(plain, asyncio.Future)
+            assert await plain == 42
+
+            op = rpc.m_Start()
+            assert isinstance(op, pyads.StepChainOperation)
+            assert await op.accepted is True
+            result = await op
+            assert result["GVL.fbStepChain.stStepStatus.xDone"] is True
         finally:
             await conn.aclose()
 

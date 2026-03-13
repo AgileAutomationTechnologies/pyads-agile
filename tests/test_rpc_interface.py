@@ -87,16 +87,20 @@ def test_get_object_rejects_class_without_ads_path():
         conn.get_object(NotDecorated)
 
 
-def test_ads_stepchain_path_adds_stepchain_metadata():
-    @pyads.ads_stepchain_path("GVL.fbStepChain")
-    class FB_StepChain:
-        def m_Start(self, udiRequestId: pyads.PLCTYPE_UDINT) -> pyads.PLCTYPE_BOOL:
+def test_stepchain_start_adds_method_level_stepchain_metadata():
+    @pyads.ads_async_path("GVL.fbStepChain")
+    class FB_StepChain(pyads.StepChainRpcInterface):
+        @pyads.stepchain_start
+        def m_Start(
+            self,
+            udiRequestId: pyads.PLCTYPE_UDINT,
+        ) -> pyads.StepChainOperation[pyads.PLCTYPE_BOOL]:
             ...
 
     definition = resolve_rpc_interface_definition(FB_StepChain)
     assert definition.object_name == "GVL.fbStepChain"
-    assert definition.stepchain is True
     assert definition.stepchain_config is not None
+    assert definition.stepchain_methods == {"m_Start"}
     assert definition.stepchain_config.request_id_arg == "udiRequestId"
     assert definition.stepchain_config.step_field == "udiStep"
     assert definition.stepchain_config.step_name_field == "sStepName"
@@ -105,10 +109,13 @@ def test_ads_stepchain_path_adds_stepchain_metadata():
     assert definition.method_return_types["m_Start"] == pyads.PLCTYPE_BOOL
 
 
-def test_ads_stepchain_path_completion_notify_is_supported():
-    @pyads.ads_stepchain_path("GVL.fbStepChain", completion="notify")
-    class FB_StepChainNotify:
-        def m_Start(self, udiRequestId: pyads.PLCTYPE_UDINT) -> pyads.StepChainOperation[Any]:
+def test_stepchain_interface_completion_notify_is_supported():
+    @pyads.ads_async_path("GVL.fbStepChain")
+    class FB_StepChainNotify(pyads.StepChainRpcInterface):
+        __stepchain_completion__ = "notify"
+
+        @pyads.stepchain_start
+        def m_Start(self, udiRequestId: pyads.PLCTYPE_UDINT) -> pyads.StepChainOperation[pyads.PLCTYPE_BOOL]:
             ...
 
     definition = resolve_rpc_interface_definition(FB_StepChainNotify)
@@ -116,12 +123,48 @@ def test_ads_stepchain_path_completion_notify_is_supported():
     assert definition.stepchain_config.completion == "notify"
 
 
-def test_ads_stepchain_path_rejects_invalid_completion():
-    with pytest.raises(ValueError, match="completion must be either 'poll' or 'notify'"):
-        @pyads.ads_stepchain_path("GVL.fbStepChain", completion="invalid")
-        class FB_Invalid:
-            def m_Start(self, udiRequestId: pyads.PLCTYPE_UDINT) -> pyads.StepChainOperation[Any]:
+def test_stepchain_interface_rejects_invalid_completion():
+    with pytest.raises(ValueError, match="'poll' or 'notify'"):
+        @pyads.ads_async_path("GVL.fbStepChain")
+        class FB_Invalid(pyads.StepChainRpcInterface):
+            __stepchain_completion__ = "invalid"
+
+            @pyads.stepchain_start
+            def m_Start(
+                self,
+                udiRequestId: pyads.PLCTYPE_UDINT,
+            ) -> pyads.StepChainOperation[pyads.PLCTYPE_BOOL]:
                 ...
+
+        resolve_rpc_interface_definition(FB_Invalid)
+
+
+def test_stepchain_start_requires_ads_async_path():
+    @pyads.ads_path("GVL.fbStepChain")
+    class FB_Invalid(pyads.StepChainRpcInterface):
+        @pyads.stepchain_start
+        def m_Start(
+            self,
+            udiRequestId: pyads.PLCTYPE_UDINT,
+        ) -> pyads.StepChainOperation[pyads.PLCTYPE_BOOL]:
+            ...
+
+    with pytest.raises(TypeError, match="@ads_async_path"):
+        resolve_rpc_interface_definition(FB_Invalid)
+
+
+def test_stepchain_start_requires_stepchain_interface_base():
+    @pyads.ads_async_path("GVL.fbStepChain")
+    class FB_Invalid:
+        @pyads.stepchain_start
+        def m_Start(
+            self,
+            udiRequestId: pyads.PLCTYPE_UDINT,
+        ) -> pyads.StepChainOperation[pyads.PLCTYPE_BOOL]:
+            ...
+
+    with pytest.raises(TypeError, match="StepChainRpcInterface"):
+        resolve_rpc_interface_definition(FB_Invalid)
 
 
 def test_ads_async_path_adds_metadata_and_unwraps_future_return_type():
@@ -149,6 +192,21 @@ def test_get_object_rejects_async_only_interface():
             a: pyads.PLCTYPE_INT,
             b: pyads.PLCTYPE_INT,
         ) -> asyncio.Future[pyads.PLCTYPE_INT]:
+            ...
+
+    conn = pyads.Connection("1.1.1.1.1.1", pyads.PORT_TC3PLC1)
+    with pytest.raises(TypeError, match="ads_async_path"):
+        conn.get_object(FB_Async)
+
+
+def test_get_object_rejects_stepchain_interface():
+    @pyads.ads_async_path("GVL.fbAsync")
+    class FB_Async(pyads.StepChainRpcInterface):
+        @pyads.stepchain_start
+        def m_Start(
+            self,
+            udiRequestId: pyads.PLCTYPE_UDINT,
+        ) -> pyads.StepChainOperation[pyads.PLCTYPE_BOOL]:
             ...
 
     conn = pyads.Connection("1.1.1.1.1.1", pyads.PORT_TC3PLC1)

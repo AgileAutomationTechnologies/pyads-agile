@@ -41,20 +41,21 @@ Async RPC and stepchain integration
   :py:meth:`pyads.AsyncConnection.get_async_object`.
 * Async interface decorator for type-safe future-returning methods:
   :py:func:`pyads.ads_async_path`.
-* Stepchain-aware RPC declaration via :py:func:`pyads.ads_stepchain_path`.
+* Stepchain-aware async interfaces via :py:class:`pyads.StepChainRpcInterface`
+  and :py:func:`pyads.stepchain_start`.
 * :py:class:`pyads.StepChainOperation` with:
 
   * ``accepted`` phase (RPC returned)
   * ``done`` phase (completion detected via configured status symbols)
   * awaitable operation behavior returning the latest ADS status snapshot
     (``await op`` == ``await op.done``)
-  * shorthand alias :pydata:`pyads.StepChainOp` for the common ``Any`` payload case
+  * generic transport type extraction via ``StepChainOperation[PLCTYPE_*]``
 * Auto-generated request IDs for stepchain methods when the request id argument
   is omitted.
 * Default stepchain naming aligned with common TwinCAT conventions:
   ``stStepStatus``, ``udiRequestId``, ``xBusy``, ``xDone``, ``xError``,
   ``diErrorCode``.
-* Built-in stepchain status helper methods on async stepchain proxies:
+* Built-in stepchain status helper methods on ``StepChainRpcInterface`` proxies:
   ``status_symbol()``, ``get_status_structure_def()``, and ``read_status()``.
 * Stepchain completion backends selectable per interface:
   ``completion="poll"`` or ``completion="notify"``.

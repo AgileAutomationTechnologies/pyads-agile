@@ -9,10 +9,10 @@ plc_ams_port = 851
 timeout_ms = 3000
 
 # Optional symbols used by integration tests
-test_symbol_int = "GVL.TestInt"
-test_symbol_str = "GVL.TestString"
-test_symbol_struct = "GVL.TestStruct"
-test_symbol_struct_array = "GVL.TestStructArray"
+test_symbol_int = "GVL.iTestInt"
+test_symbol_str = "GVL.sTestString"
+test_symbol_struct = "GVL.stTestStruct"
+test_symbol_struct_array = "GVL.astTestStructArray"
 test_struct_strlen = 80
 test_struct_array_size = 2
 
@@ -39,6 +39,8 @@ test_rpc_write_bytes_hex = ""
 # When test_stepchain_object is empty, stepchain async test is skipped.
 test_stepchain_object = "GVL.fbStepChain"
 test_stepchain_method = "m_xStartStepChain"
+test_stepchain_abort_method = "m_xAbortStepChain"
+test_stepchain_abort_delay_ms = 250
 
 # Status location:
 # - Either set test_stepchain_status_symbol to an absolute symbol path, e.g.
