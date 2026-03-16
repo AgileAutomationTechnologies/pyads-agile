@@ -12,6 +12,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Removed
 
+## [0.3.4] - 2026-03-16
+
+### Added
+
+### Changed
+- Published a fresh package release so PyPI reflects the updated Agile
+  Automation website.
+
+### Removed
+
 ## [0.3.3] - 2026-03-13
 
 ### Added
